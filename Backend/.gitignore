@@ -9,7 +9,7 @@ yarn-error.log*
 node_modules/
 
 # Environment variables
-.env
+# .env
 
 # Optional npm cache directory
 .npm
