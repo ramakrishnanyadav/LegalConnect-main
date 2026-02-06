@@ -23,6 +23,10 @@ export function setupAuth() {
   });
 
   function showLoggedInState(user) {
+    const adminNavItem = document.getElementById("admin-nav-item");
+    if (adminNavItem) {
+      adminNavItem.style.display = user.role === "admin" ? "" : "none";
+    }
     authContainer.innerHTML = `
       <div class="user-profile">
         <div class="profile-image-circle" id="profile-icon">

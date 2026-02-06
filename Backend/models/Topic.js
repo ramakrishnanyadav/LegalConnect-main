@@ -34,6 +34,18 @@ const replySchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    reports: {
+      type: Number,
+      default: 0,
+    },
+    reporters: [
+      {
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+      },
+    ],
     createdAt: {
       type: Date,
       default: Date.now,
@@ -96,6 +108,18 @@ const topicSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  reports: {
+    type: Number,
+    default: 0,
+  },
+  reporters: [
+    {
+      user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    },
+  ],
   upvotes: [
     {
       user: {

@@ -27,6 +27,7 @@ function initApp() {
             <li><a href="#" data-page="resources" data-i18n="resources">Resources</a></li>
             <li><a href="#" data-page="community" data-i18n="community">Community</a></li>
             <li><a href="#" data-page="ai-assistant" data-i18n="aiAssistant">AI Assistant</a></li>
+            <li id="admin-nav-item" style="display: none;"><a href="#" data-page="admin"><i class="fas fa-shield-alt"></i> Admin</a></li>
           </ul>
         </nav>
         <div class="right-nav-controls">
@@ -88,9 +89,32 @@ function initApp() {
   const hash = window.location.hash.slice(1);
   if (hash.startsWith("lawyer-profile/")) {
     const id = hash.split("/")[1];
-    history.replaceState({ page: "lawyer-profile", params: { id } }, "", "#" + hash);
+    history.replaceState(
+      { page: "lawyer-profile", params: { id } },
+      "",
+      "#" + hash
+    );
     navigateTo("lawyer-profile", { id }, true);
-  } else if (["lawyers", "resources", "community", "ai-assistant", "lawyer-register", "user-profile"].includes(hash)) {
+  } else if (hash.startsWith("community/topic/")) {
+    // Deep link directly to a specific community topic
+    const id = hash.split("/")[2];
+    history.replaceState(
+      { page: "community", params: { topicId: id } },
+      "",
+      "#" + hash
+    );
+    navigateTo("community", { topicId: id }, true);
+  } else if (
+    [
+      "lawyers",
+      "resources",
+      "community",
+      "ai-assistant",
+      "lawyer-register",
+      "user-profile",
+      "admin",
+    ].includes(hash)
+  ) {
     history.replaceState({ page: hash, params: {} }, "", "#" + hash);
     navigateTo(hash, {}, true);
   } else {

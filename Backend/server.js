@@ -15,6 +15,7 @@ import communityRoutes from "./routes/communityRoutes.js";
 import aiRoutes from "./routes/aiRoutes.js";
 import consultationRoutes from "./routes/consultationRoutes.js";
 import healthRoutes from "./routes/healthRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
 
 // Load environment variables
 dotenv.config();
@@ -93,6 +94,7 @@ app.use("/api/community", communityRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/consultations", consultationRoutes);
 app.use("/api/health", healthRoutes);
+app.use("/api/admin", adminRoutes);
 
 // Root route
 app.get("/", (req, res) => {

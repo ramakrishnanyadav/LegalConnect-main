@@ -2,32 +2,6 @@ import TopicModel from "../models/Topic.js";
 import UserModel from "../models/User.js";
 import { logger } from "../utils/logger.js";
 
-// Helper to safely emit socket events (works in both environments)
-const safeEmitSocketEvent = (event, data, room = null) => {
-  try {
-    // In production, socket events will be silently ignored
-    if (process.env.NODE_ENV === "production") {
-      return; // Skip socket events in production
-    }
-
-    if (global.communityNamespace) {
-      if (room) {
-        global.communityNamespace.to(room).emit(event, data);
-        logger.debug(`Emitted ${event} to room ${room}`);
-      } else {
-        global.communityNamespace.emit(event, data);
-        logger.debug(`Emitted ${event} to all clients`);
-      }
-    } else {
-      logger.debug(
-        `Socket event ${event} not emitted: namespace not available`
-      );
-    }
-  } catch (error) {
-    logger.error(`Socket emit error (${event}):`, error);
-  }
-};
-
 function toIdString(id) {
   return id ? id.toString() : null;
 }
@@ -92,59 +66,115 @@ function formatReply(reply, userById) {
   };
 }
 
-/**
- * @desc    Get forum topics (with filters)
- * @route   GET /api/community/topics
- * @access  Public
- */
-export const getTopics = async (req, res) => {
+// Helper to safely emit socket events (works in both environments)
+const safeEmitSocketEvent = (event, data, room = null) => {
   try {
-    const { category, search } = req.query;
-    const filter = {};
-    if (category) filter.category = category;
-    if (search && search.trim()) {
-      filter.$text = { $search: search.trim() };
+    // In production, socket events will be silently ignored
+    if (process.env.NODE_ENV === "production") {
+      return; // Skip socket events in production
     }
 
-    const topics = await TopicModel.find(filter)
-      .sort({ createdAt: -1 })
-      .populate({ path: "user", select: "name profileImage createdAt" });
-
-    const data = topics.map((t) => ({
-      id: toIdString(t._id),
-      title: t.title,
-      category: t.category,
-      content: t.content,
-      anonymous: !!t.anonymous,
-      user: {
-        name: t.anonymous ? "Anonymous" : t.user?.name || "Anonymous User",
-        profileImage: t.anonymous
-          ? "/lawyer.png"
-          : normalizeProfileImage(t.user?.profileImage),
-        createdAt: t.user?.createdAt,
-      },
-      replies: countRepliesRecursive(t.replies),
-      views: t.views || 0,
-      voteScore: typeof t.voteScore === "number" ? t.voteScore : 0,
-      createdAt: t.createdAt,
-    }));
-
-    res.json({ success: true, count: data.length, data });
+    if (global.communityNamespace) {
+      if (room) {
+        global.communityNamespace.to(room).emit(event, data);
+        logger.debug(`Emitted ${event} to room ${room}`);
+      } else {
+        global.communityNamespace.emit(event, data);
+        logger.debug(`Emitted ${event} to all clients`);
+      }
+    } else {
+      logger.debug(
+        `Socket event ${event} not emitted: namespace not available`
+      );
+    }
   } catch (error) {
-    logger.error("Get topics error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Server error retrieving topics",
-      error: process.env.NODE_ENV === "development" ? error.message : undefined,
-    });
+    logger.error(`Socket emit error (${event}):`, error);
   }
 };
 
-/**
- * @desc    Get forum categories
- * @route   GET /api/community/categories
- * @access  Public
- */
+// Helper to map topic for API response
+function mapTopic(topic, { list = false } = {}) {
+  if (!topic) return topic;
+  const voteScore =
+    typeof topic.voteScore === "number"
+      ? topic.voteScore
+      : (topic.upvotes?.length || 0) - (topic.downvotes?.length || 0);
+
+  const mapReply = (reply) => {
+    if (!reply) return reply;
+    const replies = Array.isArray(reply.replies)
+      ? reply.replies.map(mapReply)
+      : [];
+    const rs =
+      typeof reply.voteScore === "number"
+        ? reply.voteScore
+        : (reply.upvotes?.length || 0) - (reply.downvotes?.length || 0);
+    return {
+      ...reply,
+      id: reply._id?.toString?.() || reply.id,
+      voteScore: rs,
+      replies,
+    };
+  };
+
+  return {
+    ...topic,
+    id: topic._id?.toString?.() || topic.id,
+    voteScore,
+    replies: list
+      ? Array.isArray(topic.replies)
+        ? topic.replies.length
+        : 0
+      : Array.isArray(topic.replies)
+      ? topic.replies.map(mapReply)
+      : [],
+  };
+}
+
+export const getTopics = async (req, res) => {
+      try {
+        const page = parseInt(req.query.page, 10) || 1;
+        const limit = 10;
+        const skip = (page - 1) * limit;
+
+        const filter = {};
+        if (req.query.category) {
+          filter.category = req.query.category;
+        }
+
+        if (req.query.search) {
+          const regex = new RegExp(req.query.search, "i");
+          filter.$or = [
+            { title: regex },
+            { content: regex },
+            { category: regex },
+          ];
+        }
+
+        const topics = await TopicModel.find(filter)
+          .sort({ isPinned: -1, createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .populate("user", "name profileImage createdAt")
+          .lean();
+
+        const listData = topics.map((topic) => mapTopic(topic, { list: true }));
+
+        res.json({
+          success: true,
+          count: listData.length,
+          data: listData,
+        });
+      } catch (error) {
+        logger.error("Get topics error:", error);
+        res.status(500).json({
+          success: false,
+          message: "Server error retrieving topics",
+          error: process.env.NODE_ENV === "development" ? error.message : undefined,
+        });
+      }
+};
+
 export const getCategories = async (req, res) => {
   try {
     const categories = [
@@ -191,7 +221,7 @@ export const getCategories = async (req, res) => {
 /**
  * @desc    Get topic by ID
  * @route   GET /api/community/topics/:id
- * @access  Public
+ * @access  Public (optional auth adds isSaved)
  */
 export const getTopicById = async (req, res) => {
   try {
@@ -206,6 +236,10 @@ export const getTopicById = async (req, res) => {
       });
     }
 
+    // Increment view count
+    topic.views = (topic.views || 0) + 1;
+    await topic.save({ validateBeforeSave: false });
+
     const userIds = collectReplyUserIds(topic.replies);
     if (topic.user) userIds.add(toIdString(topic.user._id));
     const users = await UserModel.find({ _id: { $in: Array.from(userIds) } }).select(
@@ -213,8 +247,19 @@ export const getTopicById = async (req, res) => {
     );
     const userById = new Map(users.map((u) => [toIdString(u._id), u]));
 
+    const topicIdStr = toIdString(topic._id);
+    const isSaved =
+      req.user &&
+      Array.isArray(req.user.savedTopics) &&
+      req.user.savedTopics.some((id) => toIdString(id) === topicIdStr);
+
+    const hasReported =
+      req.user &&
+      Array.isArray(topic.reporters) &&
+      topic.reporters.some((r) => toIdString(r.user) === req.user.id);
+
     const formatted = {
-      id: toIdString(topic._id),
+      id: topicIdStr,
       title: topic.title,
       category: topic.category,
       content: topic.content,
@@ -232,6 +277,8 @@ export const getTopicById = async (req, res) => {
       views: topic.views || 0,
       voteScore: typeof topic.voteScore === "number" ? topic.voteScore : 0,
       createdAt: topic.createdAt,
+      isSaved: !!isSaved,
+      hasReported: !!hasReported,
     };
 
     res.json({
@@ -399,17 +446,16 @@ export const upvoteTopic = async (req, res) => {
     if (hasUpvoted) {
       topic.upvotes = topic.upvotes.filter((u) => toIdString(u.user) !== userId);
     } else {
-      topic.upvotes.push({ user: userId });
       if (hasDownvoted) {
         topic.downvotes = topic.downvotes.filter(
           (u) => toIdString(u.user) !== userId
         );
       }
+      topic.upvotes.push({ user: userId });
     }
     topic.voteScore = topic.upvotes.length - topic.downvotes.length;
     await topic.save();
 
-    // Emit WebSocket event for topic vote update (safely)
     safeEmitSocketEvent("topic-vote-update", {
       topicId,
       voteScore: topic.voteScore,
@@ -418,7 +464,7 @@ export const upvoteTopic = async (req, res) => {
     res.json({
       success: true,
       data: {
-        message: `Upvote for topic ID: ${req.params.id} registered`,
+        message: `Upvote for topic ID: ${topicId} registered`,
         voteScore: topic.voteScore,
       },
     });
@@ -457,15 +503,14 @@ export const downvoteTopic = async (req, res) => {
         (u) => toIdString(u.user) !== userId
       );
     } else {
-      topic.downvotes.push({ user: userId });
       if (hasUpvoted) {
         topic.upvotes = topic.upvotes.filter((u) => toIdString(u.user) !== userId);
       }
+      topic.downvotes.push({ user: userId });
     }
     topic.voteScore = topic.upvotes.length - topic.downvotes.length;
     await topic.save();
 
-    // Emit WebSocket event for topic vote update (safely)
     safeEmitSocketEvent("topic-vote-update", {
       topicId,
       voteScore: topic.voteScore,
@@ -474,7 +519,7 @@ export const downvoteTopic = async (req, res) => {
     res.json({
       success: true,
       data: {
-        message: `Downvote for topic ID: ${req.params.id} registered`,
+        message: `Downvote for topic ID: ${topicId} registered`,
         voteScore: topic.voteScore,
       },
     });
@@ -512,6 +557,8 @@ export const upvoteReply = async (req, res) => {
       });
     }
     const userId = req.user.id;
+    reply.upvotes = reply.upvotes || [];
+    reply.downvotes = reply.downvotes || [];
     const hasUpvoted = reply.upvotes?.some((u) => toIdString(u.user) === userId);
     const hasDownvoted = reply.downvotes?.some(
       (u) => toIdString(u.user) === userId
@@ -519,19 +566,17 @@ export const upvoteReply = async (req, res) => {
     if (hasUpvoted) {
       reply.upvotes = reply.upvotes.filter((u) => toIdString(u.user) !== userId);
     } else {
-      reply.upvotes = reply.upvotes || [];
-      reply.upvotes.push({ user: userId });
       if (hasDownvoted) {
         reply.downvotes = reply.downvotes.filter(
           (u) => toIdString(u.user) !== userId
         );
       }
+      reply.upvotes.push({ user: userId });
     }
-    reply.voteScore = (reply.upvotes?.length || 0) - (reply.downvotes?.length || 0);
+    const voteScore = (reply.upvotes?.length || 0) - (reply.downvotes?.length || 0);
+    reply.voteScore = voteScore;
     await topic.save();
-    const voteScore = reply.voteScore;
 
-    // Emit WebSocket event for reply vote update (safely)
     safeEmitSocketEvent(
       "reply-vote-update",
       {
@@ -583,6 +628,8 @@ export const downvoteReply = async (req, res) => {
       });
     }
     const userId = req.user.id;
+    reply.upvotes = reply.upvotes || [];
+    reply.downvotes = reply.downvotes || [];
     const hasDownvoted = reply.downvotes?.some(
       (u) => toIdString(u.user) === userId
     );
@@ -592,17 +639,15 @@ export const downvoteReply = async (req, res) => {
         (u) => toIdString(u.user) !== userId
       );
     } else {
-      reply.downvotes = reply.downvotes || [];
-      reply.downvotes.push({ user: userId });
       if (hasUpvoted) {
         reply.upvotes = reply.upvotes.filter((u) => toIdString(u.user) !== userId);
       }
+      reply.downvotes.push({ user: userId });
     }
-    reply.voteScore = (reply.upvotes?.length || 0) - (reply.downvotes?.length || 0);
+    const voteScore = (reply.upvotes?.length || 0) - (reply.downvotes?.length || 0);
+    reply.voteScore = voteScore;
     await topic.save();
-    const voteScore = reply.voteScore;
 
-    // Emit WebSocket event for reply vote update (safely)
     safeEmitSocketEvent(
       "reply-vote-update",
       {
@@ -625,6 +670,230 @@ export const downvoteReply = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Server error downvoting reply",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+/**
+ * @desc    Save a topic to user's saved list
+ * @route   POST /api/community/topics/:id/save
+ * @access  Private
+ */
+export const saveTopic = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const topicId = req.params.id;
+    const topic = await TopicModel.findById(topicId);
+    if (!topic) {
+      return res.status(404).json({
+        success: false,
+        message: "Topic not found",
+      });
+    }
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+    const savedIds = (user.savedTopics || []).map((id) => toIdString(id));
+    if (savedIds.includes(topicId)) {
+      return res.json({
+        success: true,
+        data: { saved: true, message: "Topic already saved" },
+      });
+    }
+    user.savedTopics = user.savedTopics || [];
+    user.savedTopics.push(topicId);
+    await user.save();
+    res.json({
+      success: true,
+      data: { saved: true, message: "Topic saved" },
+    });
+  } catch (error) {
+    logger.error("Save topic error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error saving topic",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+/**
+ * @desc    Remove a topic from user's saved list
+ * @route   DELETE /api/community/topics/:id/save
+ * @access  Private
+ */
+export const unsaveTopic = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const topicId = req.params.id;
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+    user.savedTopics = (user.savedTopics || []).filter(
+      (id) => toIdString(id) !== topicId
+    );
+    await user.save();
+    res.json({
+      success: true,
+      data: { saved: false, message: "Topic removed from saved" },
+    });
+  } catch (error) {
+    logger.error("Unsave topic error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error unsaving topic",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+/**
+ * @desc    Report a topic (one report per user; count stored on topic)
+ * @route   POST /api/community/topics/:id/report
+ * @access  Private
+ */
+export const reportTopic = async (req, res) => {
+  try {
+    const topicId = req.params.id;
+    const userId = req.user.id;
+    const topic = await TopicModel.findById(topicId);
+    if (!topic) {
+      return res.status(404).json({
+        success: false,
+        message: "Topic not found",
+      });
+    }
+
+    topic.reporters = topic.reporters || [];
+    const hasReported = topic.reporters.some((r) => toIdString(r.user) === userId);
+    if (hasReported) {
+      return res.status(400).json({
+        success: false,
+        message: "You have already reported this content.",
+      });
+    }
+
+    topic.reporters.push({ user: userId });
+    topic.reports = topic.reporters.length;
+    await topic.save({ validateBeforeSave: false });
+
+    res.json({
+      success: true,
+      data: {
+        message: "Report submitted. We will review this content.",
+        reports: topic.reports,
+      },
+    });
+  } catch (error) {
+    logger.error("Report topic error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error submitting report",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+/**
+ * @desc    Report a reply/comment (one report per user per reply; count on reply)
+ * @route   POST /api/community/topics/:id/replies/:replyId/report
+ * @access  Private
+ */
+export const reportReply = async (req, res) => {
+  try {
+    const topicId = req.params.id;
+    const replyId = req.params.replyId;
+    const userId = req.user.id;
+    const topic = await TopicModel.findById(topicId);
+    if (!topic) {
+      return res.status(404).json({
+        success: false,
+        message: "Topic not found",
+      });
+    }
+
+    const reply = findReplyById(topic.replies, replyId);
+    if (!reply) {
+      return res.status(404).json({
+        success: false,
+        message: "Comment not found",
+      });
+    }
+
+    reply.reporters = reply.reporters || [];
+    const hasReported = reply.reporters.some((r) => toIdString(r.user) === userId);
+    if (hasReported) {
+      return res.status(400).json({
+        success: false,
+        message: "You have already reported this comment.",
+      });
+    }
+
+    reply.reporters.push({ user: userId });
+    reply.reports = reply.reporters.length;
+    await topic.save({ validateBeforeSave: false });
+
+    res.json({
+      success: true,
+      data: {
+        message: "Report submitted. We will review this content.",
+        reports: reply.reports,
+      },
+    });
+  } catch (error) {
+    logger.error("Report reply error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error submitting report",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+/**
+ * @desc    Get user's saved topics
+ * @route   GET /api/community/saved
+ * @access  Private
+ */
+export const getSavedTopics = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const user = await UserModel.findById(userId)
+      .populate({
+        path: "savedTopics",
+        populate: { path: "user", select: "name profileImage createdAt" },
+      })
+      .lean();
+    if (!user || !user.savedTopics) {
+      return res.json({ success: true, count: 0, data: [] });
+    }
+    const topics = user.savedTopics
+      .filter((t) => t != null)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .map((t) =>
+        mapTopic(
+          {
+            ...t,
+            user: t.user || { name: "Anonymous User", profileImage: "/lawyer.png" },
+          },
+          { list: true }
+        )
+      );
+    res.json({ success: true, count: topics.length, data: topics });
+  } catch (error) {
+    logger.error("Get saved topics error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error retrieving saved topics",
       error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }

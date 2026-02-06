@@ -9,18 +9,35 @@ import {
   upvoteReply,
   downvoteReply,
   getCategories,
+  saveTopic,
+  unsaveTopic,
+  getSavedTopics,
+  reportTopic,
+  reportReply,
 } from "../controllers/communityController.js";
-import { authenticate } from "../middleware/authMiddleware.js";
+import {
+  authenticate,
+  optionalAuthenticate,
+} from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
 // Public routes
 router.get("/topics", getTopics);
-router.get("/topics/:id", getTopicById);
 router.get("/categories", getCategories);
+
+// Topic by ID: optional auth (adds isSaved when logged in)
+router.get("/topics/:id", optionalAuthenticate, getTopicById);
+
+// Saved topics - must be before /topics/:id/save to avoid conflict
+router.get("/saved", authenticate, getSavedTopics);
 
 // Protected routes that require authentication
 router.post("/topics", authenticate, createTopic);
+router.post("/topics/:id/save", authenticate, saveTopic);
+router.delete("/topics/:id/save", authenticate, unsaveTopic);
+router.post("/topics/:id/report", authenticate, reportTopic);
+router.post("/topics/:id/replies/:replyId/report", authenticate, reportReply);
 router.post("/topics/:id/replies", authenticate, addReply);
 router.put("/topics/:id/upvote", authenticate, upvoteTopic);
 router.put("/topics/:id/downvote", authenticate, downvoteTopic);

@@ -223,6 +223,27 @@ export const communityService = {
         direction === "up" ? "upvote" : "downvote"
       }`
     ),
+  saveTopic: (topicId) => api.post(`/community/topics/${topicId}/save`),
+  unsaveTopic: (topicId) => api.delete(`/community/topics/${topicId}/save`),
+  reportTopic: (topicId) => api.post(`/community/topics/${topicId}/report`),
+  reportReply: (topicId, replyId) =>
+    api.post(`/community/topics/${topicId}/replies/${replyId}/report`),
+  getSavedTopics: () => api.get("/community/saved"),
+};
+
+// Admin API services
+export const adminService = {
+  getDashboard: () => api.get("/admin/dashboard"),
+  getUsers: () => api.get("/admin/users"),
+  deleteUser: (id) => api.delete(`/admin/users/${id}`),
+  getTopics: () => api.get("/admin/topics"),
+  deleteTopic: (id) => api.delete(`/admin/topics/${id}`),
+  getLawyers: () => api.get("/admin/lawyers"),
+  deleteLawyer: (id) => api.delete(`/admin/lawyers/${id}`),
+  getResources: () => api.get("/admin/resources"),
+  deleteResource: (id) => api.delete(`/admin/resources/${id}`),
+  getConsultations: () => api.get("/admin/consultations"),
+  deleteConsultation: (id) => api.delete(`/admin/consultations/${id}`),
 };
 
 // AI Assistant API services

@@ -17,7 +17,7 @@ function showToast(message) {
   }, 2500);
 }
 
-export function renderCommunityPage() {
+export function renderCommunityPage(initialTopicId = null) {
   const mainContent = document.getElementById("main-content");
 
   mainContent.innerHTML = `
@@ -27,13 +27,14 @@ export function renderCommunityPage() {
       
       <div class="forum-actions">
         <button id="new-topic-btn" class="btn btn-primary"><i class="fas fa-plus"></i> New Topic</button>
+        <button id="saved-tab-btn" class="btn btn-outline" title="View saved topics"><i class="fas fa-bookmark"></i> Saved</button>
         <div class="search-container">
           <input type="text" id="forum-search" placeholder="Search forums...">
           <button class="btn btn-outline"><i class="fas fa-search"></i></button>
         </div>
       </div>
       
-      <div class="forum-categories card">
+      <div class="forum-categories card" id="forum-categories">
         <h2>Forum Categories</h2>
         <div class="category-list"></div>
       </div>
@@ -64,6 +65,33 @@ export function renderCommunityPage() {
 
   document.getElementById("create-topic-btn").addEventListener("click", () => {
     showNewTopicModal();
+  });
+
+  // Saved tab: toggle between All and Saved view
+  let isSavedView = false;
+  document.getElementById("saved-tab-btn").addEventListener("click", () => {
+    if (isSavedView) {
+      // Switch back to All
+      isSavedView = false;
+      document.getElementById("saved-tab-btn").classList.remove("active");
+      const categoriesEl = document.getElementById("forum-categories");
+      if (categoriesEl) categoriesEl.style.display = "";
+      document.querySelector(".topics-header h2").textContent = "Community Discussions";
+      loadTopics(1);
+    } else {
+      // Switch to Saved
+      const user = localStorage.getItem("user");
+      if (!user) {
+        showToast("Please log in to view saved topics");
+        return;
+      }
+      isSavedView = true;
+      document.getElementById("saved-tab-btn").classList.add("active");
+      const categoriesEl = document.getElementById("forum-categories");
+      if (categoriesEl) categoriesEl.style.display = "none";
+      document.querySelector(".topics-header h2").textContent = "Saved Topics";
+      loadSavedTopics();
+    }
   });
 
   // Add search functionality
@@ -155,6 +183,11 @@ export function renderCommunityPage() {
   // Load initial topics and categories from API
   loadTopics();
   loadCategories();
+
+  // If a specific topic ID was provided (e.g., from a shared link), open it
+  if (initialTopicId) {
+    viewTopic(initialTopicId);
+  }
 
   // Clean up WebSocket event listeners and polling when leaving the page
   return () => {
@@ -249,6 +282,38 @@ async function loadTopics(page = 1, category = null, search = null) {
     console.error("Error loading topics:", error);
     topicsList.innerHTML =
       '<div class="error-message">Failed to load discussions. Please try again later.</div>';
+  }
+}
+
+// Load saved topics from API (requires login)
+async function loadSavedTopics() {
+  const topicsList = document.getElementById("topics-list");
+  if (!topicsList) return;
+
+  try {
+    topicsList.innerHTML =
+      '<div class="loading-spinner">Loading saved topics...</div>';
+
+    const response = await communityService.getSavedTopics();
+    const data = response.data;
+
+    if (!data.success) {
+      throw new Error(data.message || "Failed to load saved topics");
+    }
+
+    const topics = data.data || [];
+    renderTopics(topics);
+
+    document.getElementById("page-indicator").textContent = "Saved";
+    document.getElementById("prev-page-btn").disabled = true;
+    document.getElementById("next-page-btn").disabled = true;
+  } catch (error) {
+    console.error("Error loading saved topics:", error);
+    const msg =
+      error.response?.status === 401
+        ? "Please log in to view saved topics."
+        : "Failed to load saved topics. Please try again later.";
+    topicsList.innerHTML = `<div class="error-message">${msg}</div>`;
   }
 }
 
@@ -387,6 +452,15 @@ function navigateToPage(direction) {
 // View a specific topic with comments
 async function viewTopic(topicId) {
   const mainContent = document.getElementById("main-content");
+
+  // Update URL/hash so this exact topic view can be shared or reopened
+  const hash = `#community/topic/${topicId}`;
+  const state = { page: "community", params: { topicId } };
+  if (window.location.hash !== hash) {
+    history.pushState(state, "", hash);
+  } else {
+    history.replaceState(state, "", hash);
+  }
 
   mainContent.innerHTML = `
     <section class="community-page topic-detail-page">
@@ -605,44 +679,102 @@ async function loadTopicDetail(topicId) {
 
     // Share: copy topic URL or use Web Share API
     topicDetail.querySelector(".share-btn").addEventListener("click", () => {
-      const shareUrl = `${window.location.origin}${window.location.pathname}${window.location.hash || "#community"}`;
+      // Always share a URL that opens this exact topic
+      const shareUrl = `${window.location.origin}${window.location.pathname}#community/topic/${topicId}`;
       if (navigator.share) {
-        navigator.share({ title: topic.title, url: shareUrl, text: topic.title }).catch(() => copyShareUrl(shareUrl));
+        navigator
+          .share({
+            title: topic.title,
+            text: topic.title,
+            url: shareUrl,
+          })
+          .catch(() => copyShareUrl(shareUrl));
       } else {
         copyShareUrl(shareUrl);
       }
     });
 
     function copyShareUrl(url) {
-      navigator.clipboard.writeText(url).then(() => showToast("Link copied to clipboard")).catch(() => showToast("Copy the link from your browser address bar"));
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard
+          .writeText(url)
+          .then(() => showToast("Link copied to clipboard"))
+          .catch(() =>
+            showToast("Copy the link from your browser address bar")
+          );
+      } else {
+        showToast("Copy the link from your browser address bar");
+      }
     }
 
-    // Save / Bookmark: toggle in localStorage
+    // Save / Bookmark: save to account when logged in
     const bookmarkBtn = topicDetail.querySelector(".bookmark-btn");
-    const savedTopics = JSON.parse(localStorage.getItem("legalconnect_saved_topics") || "[]");
-    if (savedTopics.includes(topicId)) {
+    const isLoggedIn = !!localStorage.getItem("user");
+    let saved = topic.isSaved === true;
+
+    if (saved) {
       bookmarkBtn.innerHTML = '<i class="fas fa-bookmark"></i> Saved';
       bookmarkBtn.classList.add("saved");
     }
-    bookmarkBtn.addEventListener("click", () => {
-      let list = JSON.parse(localStorage.getItem("legalconnect_saved_topics") || "[]");
-      if (list.includes(topicId)) {
-        list = list.filter((id) => id !== topicId);
-        bookmarkBtn.innerHTML = '<i class="far fa-bookmark"></i> Save';
-        bookmarkBtn.classList.remove("saved");
-        showToast("Removed from saved");
-      } else {
-        list.push(topicId);
-        bookmarkBtn.innerHTML = '<i class="fas fa-bookmark"></i> Saved';
-        bookmarkBtn.classList.add("saved");
-        showToast("Saved to bookmarks");
+    bookmarkBtn.addEventListener("click", async () => {
+      if (!isLoggedIn) {
+        showToast("Please log in to save topics");
+        return;
       }
-      localStorage.setItem("legalconnect_saved_topics", JSON.stringify(list));
+      try {
+        if (saved) {
+          await communityService.unsaveTopic(topicId);
+          bookmarkBtn.innerHTML = '<i class="far fa-bookmark"></i> Save';
+          bookmarkBtn.classList.remove("saved");
+          saved = false;
+          showToast("Removed from saved");
+        } else {
+          await communityService.saveTopic(topicId);
+          bookmarkBtn.innerHTML = '<i class="fas fa-bookmark"></i> Saved';
+          bookmarkBtn.classList.add("saved");
+          saved = true;
+          showToast("Saved to bookmarks");
+        }
+      } catch (error) {
+        const msg =
+          error.response?.status === 401
+            ? "Please log in to save topics"
+            : "Failed to save. Please try again.";
+        showToast(msg);
+      }
     });
 
-    // Report: acknowledge (no backend yet)
-    topicDetail.querySelector(".report-btn").addEventListener("click", () => {
-      showToast("Report submitted. We will review this content.");
+    // Report: change to "Reported" only after successful click
+    const reportBtn = topicDetail.querySelector(".report-btn");
+    let hasReported = false;
+    reportBtn.addEventListener("click", async () => {
+      const user = localStorage.getItem("user");
+      if (!user) {
+        showToast("Please log in to report content.");
+        return;
+      }
+      if (hasReported) {
+        showToast("You have already reported this content.");
+        return;
+      }
+      try {
+        const res = await communityService.reportTopic(topicId);
+        hasReported = true;
+        reportBtn.innerHTML = '<i class="fas fa-flag"></i> Reported';
+        reportBtn.classList.add("reported");
+        showToast(res.data?.data?.message || "Report submitted. We will review this content.");
+      } catch (error) {
+        if (error.response?.status === 400 && error.response?.data?.message?.includes("already reported")) {
+          hasReported = true;
+          reportBtn.innerHTML = '<i class="fas fa-flag"></i> Reported';
+          reportBtn.classList.add("reported");
+        }
+        const msg =
+          error.response?.status === 401
+            ? "Please log in to report content."
+            : error.response?.data?.message || "Failed to submit report. Please try again.";
+        showToast(msg);
+      }
     });
   } catch (error) {
     console.error("Error loading topic details:", error);
@@ -919,7 +1051,43 @@ function setupCommentEventListeners(topicId) {
     });
   });
   document.querySelectorAll(".comment .report-btn").forEach((btn) => {
-    btn.addEventListener("click", () => showToast("Report submitted. We will review this content."));
+    let hasReported = false;
+    btn.addEventListener("click", async () => {
+      const user = localStorage.getItem("user");
+      if (!user) {
+        showToast("Please log in to report content.");
+        return;
+      }
+      if (hasReported) {
+        showToast("You have already reported this comment.");
+        return;
+      }
+      const comment = btn.closest(".comment");
+      const replyId = comment?.dataset?.id;
+      if (!replyId) return;
+      try {
+        const res = await communityService.reportReply(topicId, replyId);
+        hasReported = true;
+        btn.innerHTML = '<i class="fas fa-flag"></i> Reported';
+        btn.classList.add("reported");
+        showToast(res.data?.data?.message || "Report submitted. We will review this content.");
+      } catch (error) {
+        if (
+          error.response?.status === 400 &&
+          error.response?.data?.message?.includes("already reported")
+        ) {
+          hasReported = true;
+          btn.innerHTML = '<i class="fas fa-flag"></i> Reported';
+          btn.classList.add("reported");
+        }
+        const msg =
+          error.response?.status === 401
+            ? "Please log in to report content."
+            : error.response?.data?.message ||
+              "Failed to submit report. Please try again.";
+        showToast(msg);
+      }
+    });
   });
 }
 

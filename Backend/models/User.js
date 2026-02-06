@@ -41,6 +41,12 @@ const userSchema = new mongoose.Schema({
   bio: {
     type: String,
   },
+  savedTopics: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Topic",
+    },
+  ],
   resetPasswordToken: String,
   resetPasswordExpire: Date,
   createdAt: {

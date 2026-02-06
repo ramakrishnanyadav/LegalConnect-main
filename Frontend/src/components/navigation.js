@@ -5,7 +5,8 @@ import { renderCommunityPage } from "../pages/community.js";
 import { renderAIAssistantPage } from "../pages/ai-assistant.js";
 import { renderLawyerRegisterPage } from "../pages/lawyer-register.js";
 import { renderLawyerProfilePage } from "../pages/lawyer-profile.js";
-import { renderUserProfilePage } from "../pages/user-profile.js"; // Add this import
+import { renderUserProfilePage } from "../pages/user-profile.js";
+import { renderAdminPage } from "../pages/admin.js";
 
 // Add a variable to track current page
 let currentPage = "home";
@@ -13,6 +14,9 @@ let currentPage = "home";
 function getHashForPage(page, params = {}) {
   if (page === "lawyer-profile" && params.id) {
     return `#lawyer-profile/${params.id}`;
+  }
+  if (page === "community" && params.topicId) {
+    return `#community/topic/${params.topicId}`;
   }
   if (page === "user-profile") return "#user-profile";
   return `#${page}`;
@@ -58,7 +62,7 @@ export function navigateTo(page, params, skipPushState = false) {
       renderResourcesPage();
       break;
     case "community":
-      renderCommunityPage();
+      renderCommunityPage(safeParams.topicId);
       break;
     case "ai-assistant":
       renderAIAssistantPage();
@@ -71,6 +75,9 @@ export function navigateTo(page, params, skipPushState = false) {
       break;
     case "user-profile":
       renderUserProfilePage();
+      break;
+    case "admin":
+      renderAdminPage();
       break;
     default:
       renderHomePage();
