@@ -17,15 +17,26 @@ const isImageKitConfigured =
 const useLocalStorage =
   process.env.USE_LOCAL_STORAGE === "true" || !isImageKitConfigured;
 
-// uploads directory (used for local storage and temp files)
-const uploadsDir = path.join(__dirname, "..", "uploads");
+const isVercel = process.env.VERCEL === "1";
+
+// On Vercel, use /tmp (only writable dir); otherwise use project-relative paths
+const uploadsDir = isVercel
+  ? path.join("/tmp", "legalconnect-uploads")
+  : path.join(__dirname, "..", "uploads");
 const tempDir = path.join(uploadsDir, "temp");
 const profileUploadsDir = path.join(uploadsDir, "profiles");
 
 function ensureDir(dir) {
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  try {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  } catch (err) {
+    // On serverless (e.g. Vercel), project filesystem is read-only; only /tmp is writable.
+    // Don't throw at module load or we get FUNCTION_INVOCATION_FAILED.
+    if (!isVercel) throw err;
+  }
 }
 
+// Create dirs at load time. On Vercel we use /tmp (writable); elsewhere use project path.
 ensureDir(uploadsDir);
 ensureDir(tempDir);
 ensureDir(profileUploadsDir);

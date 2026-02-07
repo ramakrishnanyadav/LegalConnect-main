@@ -20,6 +20,12 @@ import adminRoutes from "./routes/adminRoutes.js";
 // Load environment variables
 dotenv.config();
 
+// Prevent FUNCTION_INVOCATION_FAILED: catch unhandled rejections so the process doesn't crash
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("[UNHANDLED REJECTION]", reason);
+  logger.error("Unhandled Rejection at:", promise, "reason:", reason);
+});
+
 // Initialize Express app
 const app = express();
 let server = null;
