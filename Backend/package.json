@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "migrate:timezones": "node scripts/migrateConsultationTimezones.js"
+    "migrate:timezones": "node scripts/migrateConsultationTimezones.js",
+    "fix:reports": "node scripts/fixReportsSchema.js"
   },
   "dependencies": {
     "@auth/express": "^0.9.0",

@@ -6,14 +6,12 @@ import UserModel from "../models/User.js";
 export const protect = async (req, res, next) => {
   try {
     let token;
-    console.log("Auth header:", req.headers.authorization);
 
     if (
       req.headers.authorization &&
       req.headers.authorization.startsWith("Bearer")
     ) {
       token = req.headers.authorization.split(" ")[1];
-      console.log("Token found:", token ? "Yes" : "No");
     }
 
     if (!token) {
@@ -24,16 +22,9 @@ export const protect = async (req, res, next) => {
     }
 
     try {
-      // Log JWT secret for debugging (first few characters)
-      const secretPreview = process.env.JWT_SECRET
-        ? `${process.env.JWT_SECRET.substring(0, 3)}...`
-        : "undefined";
-      console.log(`Using JWT_SECRET starting with: ${secretPreview}`);
-
       // Test token parts
       const parts = token.split(".");
       if (parts.length !== 3) {
-        console.error("Token format is invalid, doesn't have 3 parts");
         return res.status(401).json({
           message: "Invalid token format",
           success: false,
@@ -41,7 +32,6 @@ export const protect = async (req, res, next) => {
       }
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      console.log("Token verified successfully for user ID:", decoded.id);
 
       // Find the user and exclude the password
       req.user = await UserModel.findById(decoded.id).select("-password");
@@ -55,8 +45,6 @@ export const protect = async (req, res, next) => {
 
       next();
     } catch (jwtError) {
-      console.error("JWT verification failed:", jwtError.message);
-
       // More detailed error for debugging
       const errorDetails = {
         name: jwtError.name,
@@ -64,7 +52,6 @@ export const protect = async (req, res, next) => {
         stack:
           process.env.NODE_ENV === "development" ? jwtError.stack : undefined,
       };
-      console.error("JWT Error details:", errorDetails);
 
       return res.status(401).json({
         message: "Authentication failed: " + jwtError.message,
@@ -73,7 +60,6 @@ export const protect = async (req, res, next) => {
       });
     }
   } catch (error) {
-    console.error("Auth middleware error:", error);
     res.status(401).json({
       message: "Not authorized, token failed",
       success: false,
@@ -87,7 +73,9 @@ export const admin = (req, res, next) => {
   if (req.user && req.user.role === "admin") {
     next();
   } else {
-    res.status(403).json({ success: false, message: "Not authorized as an admin" });
+    res
+      .status(403)
+      .json({ success: false, message: "Not authorized as an admin" });
   }
 };
 

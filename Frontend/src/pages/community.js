@@ -62,7 +62,8 @@ export function renderCommunityPage(initialTopicId = null) {
       document.getElementById("saved-tab-btn").classList.remove("active");
       const categoriesEl = document.getElementById("forum-categories");
       if (categoriesEl) categoriesEl.style.display = "";
-      document.querySelector(".topics-header h2").textContent = "Community Discussions";
+      document.querySelector(".topics-header h2").textContent =
+        "Community Discussions";
       loadTopics(1);
     } else {
       // Switch to Saved
@@ -138,7 +139,7 @@ export function renderCommunityPage(initialTopicId = null) {
     onTopicVoteUpdate: (data) => {
       // Update vote count for a topic
       const topicElement = document.querySelector(
-        `.topic-card[data-id="${data.topicId}"]`
+        `.topic-card[data-id="${data.topicId}"]`,
       );
       if (topicElement) {
         const voteScoreElement = topicElement.querySelector(".vote-score");
@@ -148,7 +149,7 @@ export function renderCommunityPage(initialTopicId = null) {
 
           // Apply vote animation
           voteScoreElement.classList.add(
-            data.voteScore > previousValue ? "vote-up" : "vote-down"
+            data.voteScore > previousValue ? "vote-up" : "vote-down",
           );
           setTimeout(() => {
             voteScoreElement.classList.remove("vote-up", "vote-down");
@@ -218,7 +219,7 @@ async function loadCategories() {
             <div><strong>${category.posts}</strong> posts</div>
           </div>
         </div>
-      `
+      `,
         )
         .join("");
 
@@ -338,20 +339,20 @@ function renderTopics(topics) {
             <span><i class="fas fa-comment"></i> ${typeof topic.replies === "number" ? topic.replies : (topic.replies?.length ?? 0)} replies</span>
             <span><i class="fas fa-eye"></i> ${topic.views} views</span>
             <span><i class="fas fa-clock"></i> ${formatTimeAgo(
-              topic.createdAt
+              topic.createdAt,
             )}</span>
           </div>
           
           <div class="topic-author">
             <img src="${topic.user.profileImage || "/lawyer.png"}" alt="${
-        topic.user.name || "Anonymous User"
-      }" class="author-image" onerror="this.src='/lawyer.png'">
+              topic.user.name || "Anonymous User"
+            }" class="author-image" onerror="this.src='/lawyer.png'">
             <span>${topic.user.name || "Anonymous User"}</span>
           </div>
         </div>
       </div>
     </div>
-  `
+  `,
     )
     .join("");
 
@@ -400,9 +401,8 @@ function loadTopicsByCategory(category) {
     '<div class="loading-spinner">Loading discussions...</div>';
 
   // Update heading to show selected category
-  document.querySelector(
-    ".topics-header h2"
-  ).textContent = `${category} Discussions`;
+  document.querySelector(".topics-header h2").textContent =
+    `${category} Discussions`;
 
   // Load topics for the selected category
   loadTopics(1, category);
@@ -415,9 +415,8 @@ function filterTopicsBySearch(searchTerm) {
     '<div class="loading-spinner">Searching discussions...</div>';
 
   // Update heading to show search query
-  document.querySelector(
-    ".topics-header h2"
-  ).textContent = `Search Results: "${searchTerm}"`;
+  document.querySelector(".topics-header h2").textContent =
+    `Search Results: "${searchTerm}"`;
 
   // Load topics with search filter
   loadTopics(1, null, searchTerm);
@@ -507,7 +506,7 @@ async function viewTopic(topicId) {
           try {
             // Update the vote score for the reply
             const replyElement = document.querySelector(
-              `.comment[data-id="${data.replyId}"]`
+              `.comment[data-id="${data.replyId}"]`,
             );
             if (replyElement) {
               const voteScoreElement =
@@ -519,7 +518,7 @@ async function viewTopic(topicId) {
 
                 // Apply vote animation
                 voteScoreElement.classList.add(
-                  data.voteScore > previousValue ? "vote-up" : "vote-down"
+                  data.voteScore > previousValue ? "vote-up" : "vote-down",
                 );
                 setTimeout(() => {
                   voteScoreElement.classList.remove("vote-up", "vote-down");
@@ -530,7 +529,7 @@ async function viewTopic(topicId) {
             console.error("Error handling reply vote update event:", err);
           }
         },
-      }
+      },
     );
 
     // In production, poll for updates every 30 seconds as WebSocket fallback
@@ -617,8 +616,8 @@ async function loadTopicDetail(topicId) {
           <div class="topic-detail-meta">
             <div class="topic-author">
               <img src="${topic.user.profileImage || "/lawyer.png"}" alt="${
-      topic.user.name || "Anonymous User"
-    }" class="author-image" onerror="this.src='/lawyer.png'">
+                topic.user.name || "Anonymous User"
+              }" class="author-image" onerror="this.src='/lawyer.png'">
               <div>
                 <span class="author-name">${
                   topic.anonymous ? "Anonymous" : topic.user.name
@@ -646,7 +645,9 @@ async function loadTopicDetail(topicId) {
           <div class="topic-actions">
             <button class="btn btn-sm btn-outline share-btn"><i class="fas fa-share-alt"></i> Share</button>
             <button class="btn btn-sm btn-outline bookmark-btn"><i class="far fa-bookmark"></i> Save</button>
-            <button class="btn btn-sm btn-outline report-btn"><i class="fas fa-flag"></i> Report</button>
+            <button class="btn btn-sm btn-outline report-btn ${topic.hasReported ? "reported" : ""}" ${topic.hasReported ? "disabled" : ""}>
+              <i class="fas fa-flag"></i> ${topic.hasReported ? "Reported" : "Report"}
+            </button>
           </div>
         </div>
       </div>
@@ -686,7 +687,7 @@ async function loadTopicDetail(topicId) {
           .writeText(url)
           .then(() => showToast("Link copied to clipboard"))
           .catch(() =>
-            showToast("Copy the link from your browser address bar")
+            showToast("Copy the link from your browser address bar"),
           );
       } else {
         showToast("Copy the link from your browser address bar");
@@ -730,38 +731,42 @@ async function loadTopicDetail(topicId) {
       }
     });
 
-    // Report: change to "Reported" only after successful click
+    // Report button for topic
     const reportBtn = topicDetail.querySelector(".report-btn");
-    let hasReported = false;
-    reportBtn.addEventListener("click", async () => {
-      const user = localStorage.getItem("user");
-      if (!user) {
-        showToast("Please log in to report content.");
-        return;
-      }
-      if (hasReported) {
-        showToast("You have already reported this content.");
-        return;
-      }
-      try {
-        const res = await communityService.reportTopic(topicId);
-        hasReported = true;
-        reportBtn.innerHTML = '<i class="fas fa-flag"></i> Reported';
-        reportBtn.classList.add("reported");
-        showToast(res.data?.data?.message || "Report submitted. We will review this content.");
-      } catch (error) {
-        if (error.response?.status === 400 && error.response?.data?.message?.includes("already reported")) {
-          hasReported = true;
+    if (!reportBtn.disabled) {
+      reportBtn.addEventListener("click", async () => {
+        const user = localStorage.getItem("user");
+        if (!user) {
+          showToast("Please log in to report content.");
+          return;
+        }
+        try {
+          const res = await communityService.reportTopic(topicId);
           reportBtn.innerHTML = '<i class="fas fa-flag"></i> Reported';
           reportBtn.classList.add("reported");
+          reportBtn.disabled = true;
+          showToast(
+            res.data?.data?.message ||
+              "Report submitted. We will review this content.",
+          );
+        } catch (error) {
+          if (error.response?.status === 400) {
+            // User already reported
+            reportBtn.innerHTML = '<i class="fas fa-flag"></i> Reported';
+            reportBtn.classList.add("reported");
+            reportBtn.disabled = true;
+            showToast("You have already reported this content.");
+          } else {
+            const msg =
+              error.response?.status === 401
+                ? "Please log in to report content."
+                : error.response?.data?.message ||
+                  "Failed to submit report. Please try again.";
+            showToast(msg);
+          }
         }
-        const msg =
-          error.response?.status === 401
-            ? "Please log in to report content."
-            : error.response?.data?.message || "Failed to submit report. Please try again.";
-        showToast(msg);
-      }
-    });
+      });
+    }
   } catch (error) {
     console.error("Error loading topic details:", error);
     topicDetail.innerHTML =
@@ -836,8 +841,8 @@ function renderComments(comments) {
         <div class="comment-header">
           <div class="comment-author">
             <img src="${comment.user?.profileImage || "/lawyer.png"}" alt="${
-        comment.user?.name || "Anonymous User"
-      }" class="author-image" onerror="this.src='/lawyer.png'">
+              comment.user?.name || "Anonymous User"
+            }" class="author-image" onerror="this.src='/lawyer.png'">
             <div>
               <span class="author-name">${
                 comment.user?.name || "Anonymous User"
@@ -850,7 +855,7 @@ function renderComments(comments) {
             </div>
           </div>
           <span class="comment-timestamp">${formatTimeAgo(
-            comment.createdAt
+            comment.createdAt,
           )}</span>
         </div>
         
@@ -859,149 +864,17 @@ function renderComments(comments) {
         </div>
         
         <div class="comment-actions">
-          <button class="reply-btn"><i class="fas fa-reply"></i> Reply</button>
-          <button class="share-btn"><i class="fas fa-share-alt"></i> Share</button>
-          <button class="report-btn"><i class="fas fa-flag"></i> Report</button>
           ${isAdmin ? `<button class="admin-delete-reply-btn btn btn-outline" title="Delete reply"><i class="fas fa-trash"></i> Delete</button>` : ""}
-        </div>
-        
-        ${
-          comment.replies && comment.replies.length > 0
-            ? `
-          <div class="nested-comments">
-            ${comment.replies
-              .map(
-                (reply) => `
-              <div class="comment nested-comment" data-id="${reply.id}">
-                <div class="comment-vote">
-                  <button class="vote-up-btn" title="Upvote"><i class="fas fa-chevron-up"></i></button>
-                  <div class="vote-score">${reply.voteScore || 0}</div>
-                  <button class="vote-down-btn" title="Downvote"><i class="fas fa-chevron-down"></i></button>
-                </div>
-                
-                <div class="comment-content">
-                  <div class="comment-header">
-                    <div class="comment-author">
-                      <img src="${
-                        reply.user?.profileImage || "/lawyer.png"
-                      }" alt="${
-                  reply.user?.name || "Anonymous User"
-                }" class="author-image" onerror="this.src='/lawyer.png'">
-                      <span class="author-name">${
-                        reply.user?.name || "Anonymous User"
-                      }</span>
-                    </div>
-                    <span class="comment-timestamp">${formatTimeAgo(
-                      reply.createdAt
-                    )}</span>
-                  </div>
-                  
-                  <div class="comment-body">
-                    ${formatContent(reply.content)}
-                  </div>
-                  
-                  <div class="comment-actions">
-                    <button class="reply-btn"><i class="fas fa-reply"></i> Reply</button>
-                    <button class="share-btn"><i class="fas fa-share-alt"></i> Share</button>
-                    <button class="report-btn"><i class="fas fa-flag"></i> Report</button>
-                    ${isAdmin ? `<button class="admin-delete-reply-btn btn btn-outline" title="Delete reply"><i class="fas fa-trash"></i> Delete</button>` : ""}
-                  </div>
-                </div>
-              </div>
-            `
-              )
-              .join("")}
-          </div>
-        `
-            : ""
-        }
-        
-        <div class="reply-form-container" style="display: none;">
-          <form class="reply-form">
-            <textarea placeholder="Write a reply..." required></textarea>
-            <div class="reply-form-actions">
-              <button type="button" class="btn btn-outline cancel-reply-btn">Cancel</button>
-              <button type="submit" class="btn btn-primary">Post Reply</button>
-            </div>
-          </form>
         </div>
       </div>
     </div>
-  `
+  `,
     )
     .join("");
 }
 
 // Set up event listeners for comment actions
 function setupCommentEventListeners(topicId) {
-  // Reply buttons
-  document.querySelectorAll(".reply-btn").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      // Check if user is logged in
-      if (!localStorage.getItem("user")) {
-        showToast("Please log in to reply to comments.", "info");
-        return;
-      }
-
-      const comment = btn.closest(".comment");
-      const replyForm = comment.querySelector(".reply-form-container");
-
-      // Hide all other reply forms first
-      document.querySelectorAll(".reply-form-container").forEach((form) => {
-        if (form !== replyForm) {
-          form.style.display = "none";
-        }
-      });
-
-      // Toggle this reply form
-      replyForm.style.display =
-        replyForm.style.display === "none" ? "block" : "none";
-
-      if (replyForm.style.display === "block") {
-        replyForm.querySelector("textarea").focus();
-      }
-    });
-  });
-
-  // Cancel reply buttons
-  document.querySelectorAll(".cancel-reply-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const replyForm = btn.closest(".reply-form-container");
-      replyForm.style.display = "none";
-    });
-  });
-
-  // Reply form submissions
-  document.querySelectorAll(".reply-form").forEach((form) => {
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-
-      const comment = form.closest(".comment");
-      const commentId = comment.dataset.id;
-      const replyContent = form.querySelector("textarea").value.trim();
-
-      if (replyContent) {
-        try {
-          form.querySelector("button[type='submit']").disabled = true;
-          form.querySelector("button[type='submit']").textContent =
-            "Posting...";
-
-          await submitReply(topicId, commentId, replyContent);
-
-          // Form will be removed when comments are reloaded
-        } catch (error) {
-          console.error("Error submitting reply:", error);
-          showToast("Failed to post reply. Please try again.", "error");
-
-          // Reset button state
-          form.querySelector("button[type='submit']").disabled = false;
-          form.querySelector("button[type='submit']").textContent =
-            "Post Reply";
-        }
-      }
-    });
-  });
-
   // Comment vote buttons
   document.querySelectorAll(".comment .vote-up-btn").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -1039,73 +912,30 @@ function setupCommentEventListeners(topicId) {
     });
   });
 
-  // Share and Report on comments
-  document.querySelectorAll(".comment .share-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const url = window.location.href;
-      navigator.clipboard.writeText(url).then(() => showToast("Link copied to clipboard")).catch(() => showToast("Copy the link from your browser"));
-    });
-  });
-  document.querySelectorAll(".comment .report-btn").forEach((btn) => {
-    let hasReported = false;
-    btn.addEventListener("click", async () => {
-      const user = localStorage.getItem("user");
-      if (!user) {
-        showToast("Please log in to report content.");
-        return;
-      }
-      if (hasReported) {
-        showToast("You have already reported this comment.");
-        return;
-      }
-      const comment = btn.closest(".comment");
-      const replyId = comment?.dataset?.id;
-      if (!replyId) return;
-      try {
-        const res = await communityService.reportReply(topicId, replyId);
-        hasReported = true;
-        btn.innerHTML = '<i class="fas fa-flag"></i> Reported';
-        btn.classList.add("reported");
-        showToast(res.data?.data?.message || "Report submitted. We will review this content.");
-      } catch (error) {
-        if (
-          error.response?.status === 400 &&
-          error.response?.data?.message?.includes("already reported")
-        ) {
-          hasReported = true;
-          btn.innerHTML = '<i class="fas fa-flag"></i> Reported';
-          btn.classList.add("reported");
-        }
-        const msg =
-          error.response?.status === 401
-            ? "Please log in to report content."
-            : error.response?.data?.message ||
-              "Failed to submit report. Please try again.";
-        showToast(msg);
-      }
-    });
-  });
-
   // Admin delete reply buttons
-  document.querySelectorAll(".comment .admin-delete-reply-btn").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const comment = btn.closest(".comment");
-      const replyId = comment?.dataset?.id;
-      if (!replyId) return;
-      showConfirm("Are you sure you want to delete this reply?", async () => {
-        try {
-          btn.disabled = true;
-          await adminService.deleteReply(topicId, replyId);
-          showToast("Reply deleted successfully.", "success");
-          await loadComments(topicId);
-        } catch (error) {
-          const msg = error.response?.data?.message || "Failed to delete reply. Please try again.";
-          showToast(msg, "error");
-          btn.disabled = false;
-        }
+  document
+    .querySelectorAll(".comment .admin-delete-reply-btn")
+    .forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const comment = btn.closest(".comment");
+        const replyId = comment?.dataset?.id;
+        if (!replyId) return;
+        showConfirm("Are you sure you want to delete this reply?", async () => {
+          try {
+            btn.disabled = true;
+            await adminService.deleteReply(topicId, replyId);
+            showToast("Reply deleted successfully.", "success");
+            await loadComments(topicId);
+          } catch (error) {
+            const msg =
+              error.response?.data?.message ||
+              "Failed to delete reply. Please try again.";
+            showToast(msg, "error");
+            btn.disabled = false;
+          }
+        });
       });
     });
-  });
 }
 
 // Submit a new top-level comment to API
@@ -1214,7 +1044,7 @@ async function voteComment(topicId, commentId, direction) {
     const response = await communityService.voteReply(
       topicId,
       commentId,
-      direction
+      direction,
     );
 
     if (!response.data.success) {
@@ -1387,7 +1217,7 @@ async function loadCategoriesForDropdown() {
       const options = categories
         .map(
           (category) =>
-            `<option value="${category.name}">${category.name}</option>`
+            `<option value="${category.name}">${category.name}</option>`,
         )
         .join("");
 
@@ -1481,14 +1311,14 @@ function createTopicElement(topic) {
           <span><i class="fas fa-comment"></i> ${typeof topic.replies === "number" ? topic.replies : (topic.replies?.length ?? 0)} replies</span>
           <span><i class="fas fa-eye"></i> ${topic.views} views</span>
           <span><i class="fas fa-clock"></i> ${formatTimeAgo(
-            topic.createdAt
+            topic.createdAt,
           )}</span>
         </div>
         
         <div class="topic-author">
           <img src="${topic.user.profileImage || "/lawyer.png"}" alt="${
-    topic.user.name || "Anonymous User"
-  }" class="author-image" onerror="this.src='/lawyer.png'">
+            topic.user.name || "Anonymous User"
+          }" class="author-image" onerror="this.src='/lawyer.png'">
           <span>${topic.user.name || "Anonymous User"}</span>
         </div>
       </div>

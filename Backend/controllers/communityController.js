@@ -1,4 +1,5 @@
 import TopicModel from "../models/Topic.js";
+import UserModel from "../models/User.js";
 import { logger } from "../utils/logger.js";
 
 // Helper to create a reply object for mock data
@@ -142,17 +143,37 @@ const mapReply = (reply) => {
 };
 
 // Helper function to map topics with vote scores
-const mapTopic = (topic, { list = false } = {}) => {
+const mapTopic = (
+  topic,
+  { list = false, userId = null, savedTopics = [] } = {},
+) => {
   if (!topic) return topic;
   const voteScore =
     typeof topic.voteScore === "number"
       ? topic.voteScore
       : (topic.upvotes?.length || 0) - (topic.downvotes?.length || 0);
 
+  // Check if current user has reported this topic
+  const hasReported =
+    userId && Array.isArray(topic.reports)
+      ? topic.reports.some(
+          (reportUserId) => reportUserId.toString() === userId.toString(),
+        )
+      : false;
+
+  // Check if current user has saved this topic
+  const topicIdStr = topic._id?.toString() || topic.id;
+  const isSaved = savedTopics.some(
+    (savedId) => savedId.toString() === topicIdStr,
+  );
+
   return {
     ...topic,
-    id: topic._id?.toString?.() || topic.id,
+    id: topicIdStr,
     voteScore,
+    reportCount: Array.isArray(topic.reports) ? topic.reports.length : 0,
+    hasReported,
+    isSaved,
     replies: list
       ? Array.isArray(topic.replies)
         ? topic.replies.length
@@ -253,8 +274,22 @@ export const getCategories = async (req, res) => {
  */
 export const getTopicById = async (req, res) => {
   try {
-    // Find the topic by ID in our mock data
-    const topic = mockTopics.find((t) => t.id === req.params.id);
+    const userId = req.user?._id; // Optional auth
+
+    // Fetch topic and increment views in one operation
+    const topic = await TopicModel.findByIdAndUpdate(
+      req.params.id,
+      { $inc: { views: 1 } },
+      { new: true },
+    )
+      .populate("user", "name profileImage createdAt")
+      .populate({
+        path: "replies",
+        populate: {
+          path: "user",
+          select: "name profileImage",
+        },
+      });
 
     if (!topic) {
       return res.status(404).json({
@@ -263,9 +298,22 @@ export const getTopicById = async (req, res) => {
       });
     }
 
+    // Get user's saved topics if authenticated
+    let savedTopics = [];
+    if (userId) {
+      const user = await UserModel.findById(userId).select("savedTopics");
+      savedTopics = user?.savedTopics || [];
+    }
+
+    const mappedTopic = mapTopic(topic.toObject(), {
+      list: false,
+      userId,
+      savedTopics,
+    });
+
     res.json({
       success: true,
-      data: topic,
+      data: mappedTopic,
     });
   } catch (error) {
     logger.error("Get topic by ID error:", error);
@@ -286,32 +334,52 @@ export const createTopic = async (req, res) => {
   try {
     const { title, category, content, anonymous } = req.body;
 
-    // Generate a new topic object
-    const newTopic = {
-      id: `${mockTopics.length + 1}${Date.now().toString().substr(-4)}`, // Generate a simple unique ID
+    // Validate required fields
+    if (!title || !category || !content) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields: title, category, content",
+      });
+    }
+
+    // Create a new topic document
+    const newTopic = new TopicModel({
       title,
       category,
       content,
-      anonymous,
-      user: {
-        name: req.user ? req.user.name : "Anonymous User",
-        profileImage: req.user?.profileImage || "/lawyer.png",
-      },
+      anonymous: anonymous || false,
+      user: req.user?._id,
       replies: [],
       views: 0,
-      voteScore: 0,
-      createdAt: new Date().toISOString(),
-    };
+      upvotes: [],
+      downvotes: [],
+      isPinned: false,
+      createdAt: new Date(),
+    });
 
-    // Add to our mock data store
-    mockTopics.unshift(newTopic); // Add to beginning of array so it appears first
+    // Save to database
+    const savedTopic = await newTopic.save();
+
+    // Populate user data
+    await savedTopic.populate("user", "name profileImage createdAt");
+
+    // Get user's saved topics for isSaved field
+    const userId = req.user._id;
+    const user = await UserModel.findById(userId).select("savedTopics");
+    const savedTopics = user?.savedTopics || [];
+
+    const mappedTopic = mapTopic(savedTopic.toObject(), {
+      list: false,
+      userId,
+      savedTopics,
+    });
 
     // Emit WebSocket event for new topic (safely)
-    safeEmitSocketEvent("new-topic", newTopic);
+    safeEmitSocketEvent("new-topic", mappedTopic);
 
     res.status(201).json({
       success: true,
-      data: newTopic,
+      data: mappedTopic,
     });
   } catch (error) {
     logger.error("Create topic error:", error);
@@ -333,8 +401,15 @@ export const addReply = async (req, res) => {
     const topicId = req.params.id;
     const { content, parentId, anonymous } = req.body;
 
-    // Find the topic in our mock data
-    const topic = mockTopics.find((t) => t.id === topicId);
+    if (!content) {
+      return res.status(400).json({
+        success: false,
+        message: "Reply content is required",
+      });
+    }
+
+    // Find the topic in database
+    const topic = await TopicModel.findById(topicId);
 
     if (!topic) {
       return res.status(404).json({
@@ -343,77 +418,88 @@ export const addReply = async (req, res) => {
       });
     }
 
-    // Create new reply
+    // Create new reply object
     const newReply = {
-      id: `reply-${Date.now()}`,
+      user: req.user?._id,
       content,
-      user: {
-        name: anonymous
-          ? "Anonymous"
-          : req.user
-            ? req.user.name
-            : "Anonymous User",
-        profileImage: anonymous
-          ? "/lawyer.png"
-          : req.user?.profileImage || "/lawyer.png",
-      },
-      anonymous,
-      voteScore: 0,
-      createdAt: new Date().toISOString(),
+      anonymous: anonymous || false,
       upvotes: [],
       downvotes: [],
+      voteScore: 0,
       replies: [],
+      createdAt: new Date(),
     };
 
-    // If parentId is provided, it's a reply to another comment
+    // If parentId is provided, add as nested reply
     if (parentId) {
-      // Find the parent comment to add this as a nested reply
-      const findParentAndAddReply = (commentsList) => {
-        for (let comment of commentsList) {
-          if (comment.id === parentId) {
-            if (!comment.replies) comment.replies = [];
-            comment.replies.push(newReply);
-            return true;
-          }
-
-          // Check nested replies
-          if (comment.replies && comment.replies.length > 0) {
-            if (findParentAndAddReply(comment.replies)) {
-              return true;
-            }
-          }
+      // Find and update the parent reply with nested reply
+      const parentFound = topic.replies.some((reply) => {
+        if (reply._id.toString() === parentId) {
+          reply.replies.push(newReply);
+          return true;
         }
+        // Could implement recursive search for deeply nested replies here if needed
         return false;
-      };
+      });
 
-      const found = findParentAndAddReply(topic.replies || []);
-
-      if (!found) {
+      if (!parentFound) {
         return res.status(404).json({
           success: false,
-          message: "Parent comment not found",
+          message: "Parent reply not found",
         });
       }
     } else {
-      // It's a top-level reply to the topic
-      if (!topic.replies) topic.replies = [];
+      // Add as top-level reply
       topic.replies.push(newReply);
     }
 
-    // Emit WebSocket event for new reply (safely)
+    // Save the updated topic
+    await topic.save();
+
+    // Populate and re-fetch to get proper user data
+    await topic.populate([
+      {
+        path: "replies.user",
+        select: "name profileImage",
+      },
+      {
+        path: "replies.replies.user",
+        select: "name profileImage",
+      },
+    ]);
+
+    // Get the newly added reply for response
+    const addedReply = parentId
+      ? topic.replies
+          .find((r) => r._id.toString() === parentId)
+          ?.replies.find((nr) => nr._id.toString() === newReply._id?.toString())
+      : topic.replies[topic.replies.length - 1];
+
+    const mappedReply = addedReply
+      ? mapReply(addedReply)
+      : {
+          id: "unknown",
+          content,
+          user: { name: "User", profileImage: "/lawyer.png" },
+          voteScore: 0,
+          createdAt: new Date().toISOString(),
+          replies: [],
+        };
+
+    // Emit WebSocket event
     safeEmitSocketEvent(
       "new-reply",
       {
         topicId,
-        reply: newReply,
+        reply: mappedReply,
         parentId,
       },
       `topic-${topicId}`,
     );
 
-    res.json({
+    res.status(201).json({
       success: true,
-      data: newReply,
+      data: mappedReply,
     });
   } catch (error) {
     logger.error("Add reply error:", error);
@@ -685,12 +771,39 @@ export const downvoteReply = async (req, res) => {
 export const saveTopic = async (req, res) => {
   try {
     const topicId = req.params.id;
-    const userId = req.user.id;
+    const userId = req.user._id;
 
-    // In production, you would:
-    // 1. Find or create a SavedTopic document
-    // 2. Add the topic to user's saved list
-    // For now, just return success
+    // Find the user
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Check if topic exists
+    const topic = await TopicModel.findById(topicId);
+    if (!topic) {
+      return res.status(404).json({
+        success: false,
+        message: "Topic not found",
+      });
+    }
+
+    // Check if already saved
+    if (user.savedTopics.includes(topicId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Topic already saved",
+      });
+    }
+
+    // Add to saved topics
+    user.savedTopics.push(topicId);
+    await user.save();
+
+    logger.info(`User ${userId} saved topic ${topicId}`);
 
     res.json({
       success: true,
@@ -714,12 +827,24 @@ export const saveTopic = async (req, res) => {
 export const unsaveTopic = async (req, res) => {
   try {
     const topicId = req.params.id;
-    const userId = req.user.id;
+    const userId = req.user._id;
 
-    // In production, you would:
-    // 1. Find the SavedTopic document
-    // 2. Remove the topic from user's saved list
-    // For now, just return success
+    // Find the user and remove topic from savedTopics
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Remove from saved topics
+    user.savedTopics = user.savedTopics.filter(
+      (id) => id.toString() !== topicId,
+    );
+    await user.save();
+
+    logger.info(`User ${userId} unsaved topic ${topicId}`);
 
     res.json({
       success: true,
@@ -742,17 +867,40 @@ export const unsaveTopic = async (req, res) => {
  */
 export const getSavedTopics = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
 
-    // In production, you would:
-    // 1. Find all SavedTopic documents for this user
-    // 2. Populate the topic details
-    // For now, return empty array
+    // Find user and populate saved topics
+    const user = await UserModel.findById(userId).populate({
+      path: "savedTopics",
+      populate: {
+        path: "user",
+        select: "name profileImage",
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Map topics with proper formatting
+    const savedTopicIds = user.savedTopics.map((t) => t._id);
+    const topics = user.savedTopics
+      .filter((topic) => topic) // Filter out null/deleted topics
+      .map((topic) =>
+        mapTopic(topic.toObject ? topic.toObject() : topic, {
+          list: true,
+          userId,
+          savedTopics: savedTopicIds,
+        }),
+      );
 
     res.json({
       success: true,
-      count: 0,
-      data: [],
+      count: topics.length,
+      data: topics,
     });
   } catch (error) {
     logger.error("Get saved topics error:", error);
@@ -772,26 +920,42 @@ export const getSavedTopics = async (req, res) => {
 export const reportTopic = async (req, res) => {
   try {
     const topicId = req.params.id;
-    const { reason } = req.body;
-    const userId = req.user.id;
+    const userId = req.user._id;
 
-    if (!reason) {
-      return res.status(400).json({
+    // Find topic
+    const topic = await TopicModel.findById(topicId);
+
+    if (!topic) {
+      return res.status(404).json({
         success: false,
-        message: "Report reason is required",
+        message: "Topic not found",
       });
     }
 
-    // In production, you would:
-    // 1. Create a Report document
-    // 2. Notify admins
-    // For now, just return success
+    // Check if user already reported
+    const alreadyReported = topic.reports.some(
+      (reportedUserId) => reportedUserId.toString() === userId.toString(),
+    );
 
-    logger.info(`Topic ${topicId} reported by user ${userId}: ${reason}`);
+    if (alreadyReported) {
+      return res.status(400).json({
+        success: false,
+        message: "You have already reported this topic",
+      });
+    }
+
+    // Add user to reports
+    topic.reports.push(userId);
+    await topic.save();
+
+    logger.info(
+      `User ${userId} reported topic ${topicId}. Total reports: ${topic.reports.length}`,
+    );
 
     res.json({
       success: true,
-      message: "Topic reported successfully. Moderators will review it.",
+      reportCount: topic.reports.length,
+      message: "Topic reported successfully",
     });
   } catch (error) {
     logger.error("Report topic error:", error);
@@ -804,35 +968,49 @@ export const reportTopic = async (req, res) => {
 };
 
 /**
- * @desc    Report a reply
+ * @desc    Report a reply (increment counter)
  * @route   POST /api/community/topics/:id/replies/:replyId/report
  * @access  Private
  */
 export const reportReply = async (req, res) => {
   try {
     const { id: topicId, replyId } = req.params;
-    const { reason } = req.body;
-    const userId = req.user.id;
 
-    if (!reason) {
-      return res.status(400).json({
+    // Find topic and update reply report count
+    const topic = await TopicModel.findByIdAndUpdate(
+      topicId,
+      { $inc: { "replies.$[elem].reports": 1 } },
+      {
+        new: true,
+        arrayFilters: [{ "elem._id": replyId }],
+      },
+    );
+
+    if (!topic) {
+      return res.status(404).json({
         success: false,
-        message: "Report reason is required",
+        message: "Topic not found",
       });
     }
 
-    // In production, you would:
-    // 1. Create a Report document
-    // 2. Notify admins
-    // For now, just return success
+    // Find the updated reply to get the report count
+    const reply = topic.replies.find((r) => r._id.toString() === replyId);
+
+    if (!reply) {
+      return res.status(404).json({
+        success: false,
+        message: "Reply not found",
+      });
+    }
 
     logger.info(
-      `Reply ${replyId} in topic ${topicId} reported by user ${userId}: ${reason}`,
+      `Reply ${replyId} in topic ${topicId} reported. Total reports: ${reply.reports}`,
     );
 
     res.json({
       success: true,
-      message: "Reply reported successfully. Moderators will review it.",
+      reportCount: reply.reports,
+      message: "Reply reported successfully",
     });
   } catch (error) {
     logger.error("Report reply error:", error);

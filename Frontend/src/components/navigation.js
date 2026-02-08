@@ -26,8 +26,12 @@ function getHashForPage(page, params = {}) {
 export function navigateTo(page, params, skipPushState = false) {
   const safeParams = params || {};
 
-  // Skip if already on this page (except lawyer-profile where id might differ)
-  if (page === currentPage && page !== "lawyer-profile" && page === "user-profile") {
+  // Skip if already on this page (except pages with parameters like lawyer-profile, topic view)
+  if (
+    page === currentPage &&
+    page !== "lawyer-profile" &&
+    page !== "community"
+  ) {
     return;
   }
 
@@ -45,7 +49,7 @@ export function navigateTo(page, params, skipPushState = false) {
   navLinks.forEach((l) => l.classList.remove("active"));
 
   const link = Array.from(navLinks).find(
-    (l) => l.getAttribute("data-page") === page
+    (l) => l.getAttribute("data-page") === page,
   );
   if (link) {
     link.classList.add("active");
@@ -89,8 +93,8 @@ function renderUserMenu(user) {
     <div class="user-menu">
       <div class="user-profile-icon" id="profile-icon">
         <img src="${user.profileImage || "/lawyer.png"}" alt="${
-    user.name
-  }" onerror="this.src='/lawyer.png'">
+          user.name
+        }" onerror="this.src='/lawyer.png'">
       </div>
       <span>${user.name}</span>
       <!-- Rest of your user menu -->

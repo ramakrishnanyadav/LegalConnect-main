@@ -179,7 +179,7 @@ export const updateUserProfile = async (req, res) => {
         location,
         bio,
       },
-      { new: true }
+      { new: true },
     ).select("-password");
 
     if (!updatedUser) {
@@ -232,13 +232,12 @@ export const uploadUserProfileImage = async (req, res) => {
 
     // Get the URL from the uploaded file
     const profileImageUrl = req.file.path || req.file.secure_url;
-    console.log("File uploaded to ImageKit:", profileImageUrl);
 
     // Update user profile with the new image URL
     const updatedUser = await UserModel.findByIdAndUpdate(
       req.user.id,
       { profileImage: profileImageUrl },
-      { new: true }
+      { new: true },
     ).select("-password");
 
     if (!updatedUser) {

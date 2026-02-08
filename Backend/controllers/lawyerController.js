@@ -115,7 +115,7 @@ export const getLawyers = async (req, res) => {
               latitude,
               longitude,
               a.officeCoordinates.latitude,
-              a.officeCoordinates.longitude
+              a.officeCoordinates.longitude,
             )
           : Infinity;
 
@@ -124,7 +124,7 @@ export const getLawyers = async (req, res) => {
               latitude,
               longitude,
               b.officeCoordinates.latitude,
-              b.officeCoordinates.longitude
+              b.officeCoordinates.longitude,
             )
           : Infinity;
 
@@ -155,17 +155,13 @@ export const getLawyers = async (req, res) => {
  */
 export const createLawyer = async (req, res) => {
   try {
-    console.log("Create lawyer request received");
-
     // Get the authenticated user from the request
     const userId = req.user.id;
-    console.log("Authenticated user ID:", userId);
 
     // Check if a lawyer profile already exists for this user
     const existingLawyer = await LawyerModel.findOne({ user: userId });
 
     if (existingLawyer) {
-      console.log("Lawyer profile already exists for user:", userId);
       return res.status(400).json({
         success: false,
         message: "A lawyer profile already exists for this user",
@@ -242,14 +238,12 @@ export const createLawyer = async (req, res) => {
       availability,
       profileImage: profileImage || undefined,
     });
-    console.log("Lawyer profile created successfully:", lawyer._id);
 
     // Update user role to 'lawyer'
     await UserModel.findByIdAndUpdate(userId, {
       role: "lawyer",
       ...(profileImage && { profileImage }),
     });
-    console.log("User role updated to 'lawyer'");
 
     res.status(201).json({
       success: true,
@@ -332,7 +326,7 @@ export const uploadLawyerProfileImage = async (req, res) => {
 export const getMyLawyerProfile = async (req, res) => {
   try {
     const lawyer = await LawyerModel.findOne({ user: req.user.id }).select(
-      "_id"
+      "_id",
     );
     if (!lawyer) {
       return res.status(404).json({
@@ -455,7 +449,7 @@ export const getLawyerReviews = async (req, res) => {
 
     // Sort reviews by date (newest first)
     reviewsWithUserInfo.sort(
-      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
     );
 
     res.json({
@@ -559,7 +553,7 @@ export const updateLawyerProfile = async (req, res) => {
         officeAddress,
         consultationFee,
       },
-      { new: true }
+      { new: true },
     );
 
     res.json({
@@ -635,7 +629,7 @@ export const addLawyerReview = async (req, res) => {
 
     // Check if user has already reviewed this lawyer
     const existingReview = lawyer.reviews.find(
-      (review) => review.user.toString() === req.user.id
+      (review) => review.user.toString() === req.user.id,
     );
 
     if (existingReview) {

@@ -34,6 +34,7 @@ const replySchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    reports: [mongoose.Schema.Types.ObjectId],
     createdAt: {
       type: Date,
       default: Date.now,
@@ -116,6 +117,7 @@ const topicSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  reports: [mongoose.Schema.Types.ObjectId],
   replies: [replySchema],
   createdAt: {
     type: Date,
