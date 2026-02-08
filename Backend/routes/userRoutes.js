@@ -5,6 +5,8 @@ import {
   getUserProfile,
   updateUserProfile,
   uploadUserProfileImage,
+  changePassword,
+  changeEmail,
 } from "../controllers/userController.js";
 import {
   getClientConsultations,
@@ -21,6 +23,8 @@ router.post("/register", registerUser);
 router.post("/login", loginUser);
 router.get("/profile", protect, getUserProfile);
 router.put("/profile", protect, updateUserProfile);
+router.put("/change-password", protect, changePassword);
+router.put("/change-email", protect, changeEmail);
 router.get("/consultations/unread-count", protect, getClientUnreadCount);
 router.post("/consultations/mark-read", protect, markClientConsultationsRead);
 router.get("/consultations", protect, getClientConsultations);
@@ -42,7 +46,7 @@ router.post(
     });
   },
   processUpload,
-  uploadUserProfileImage
+  uploadUserProfileImage,
 );
 
 export default router;

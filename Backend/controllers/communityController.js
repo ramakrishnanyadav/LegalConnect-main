@@ -913,6 +913,117 @@ export const getSavedTopics = async (req, res) => {
 };
 
 /**
+ * @desc    Get user's posted topics
+ * @route   GET /api/community/my-topics
+ * @access  Private
+ */
+export const getUserPostedTopics = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // Find topics created by the user
+    const topics = await TopicModel.find({ user: userId })
+      .sort({ createdAt: -1 })
+      .populate("user", "name profileImage")
+      .lean();
+
+    // Get user's saved topics for isSaved field
+    const user = await UserModel.findById(userId).select("savedTopics");
+    const savedTopics = user?.savedTopics || [];
+
+    // Map topics with proper formatting
+    const mappedTopics = topics.map((topic) =>
+      mapTopic(topic, {
+        list: true,
+        userId,
+        savedTopics,
+      }),
+    );
+
+    res.json({
+      success: true,
+      count: mappedTopics.length,
+      data: mappedTopics,
+    });
+  } catch (error) {
+    logger.error("Get user posted topics error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error retrieving posted topics",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+/**
+ * @desc    Get topics user has commented on
+ * @route   GET /api/community/my-comments
+ * @access  Private
+ */
+export const getUserCommentedTopics = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const userIdStr = userId.toString();
+
+    // Find all topics and filter those where user has replied
+    const allTopics = await TopicModel.find()
+      .populate("user", "name profileImage")
+      .lean();
+
+    // Helper function to check if user replied to this topic or any nested reply
+    const hasUserReplied = (replies) => {
+      if (!Array.isArray(replies)) return false;
+
+      for (const reply of replies) {
+        if (reply.user && reply.user.toString() === userIdStr) {
+          return true;
+        }
+        if (hasUserReplied(reply.replies)) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    // Filter topics where user has commented
+    const commentedTopics = allTopics.filter((topic) =>
+      hasUserReplied(topic.replies),
+    );
+
+    // Sort by most recent activity
+    commentedTopics.sort(
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
+    );
+
+    // Get user's saved topics for isSaved field
+    const user = await UserModel.findById(userId).select("savedTopics");
+    const savedTopics = user?.savedTopics || [];
+
+    // Map topics with proper formatting
+    const mappedTopics = commentedTopics.map((topic) =>
+      mapTopic(topic, {
+        list: true,
+        userId,
+        savedTopics,
+      }),
+    );
+
+    res.json({
+      success: true,
+      count: mappedTopics.length,
+      data: mappedTopics,
+    });
+  } catch (error) {
+    logger.error("Get user commented topics error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error retrieving commented topics",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+/**
  * @desc    Report a topic
  * @route   POST /api/community/topics/:id/report
  * @access  Private

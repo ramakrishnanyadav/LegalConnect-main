@@ -65,7 +65,9 @@ export function renderAdminPage() {
 
   document.querySelectorAll(".admin-tab").forEach((btn) => {
     btn.addEventListener("click", () => {
-      document.querySelectorAll(".admin-tab").forEach((b) => b.classList.remove("active"));
+      document
+        .querySelectorAll(".admin-tab")
+        .forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
       loadTabContent(btn.dataset.tab);
     });
@@ -124,7 +126,7 @@ async function loadDashboard() {
                 <span class="report-title">${t.title}</span>
                 <span class="report-meta">by ${t.author} · ${formatDate(t.createdAt)}</span>
               </li>
-            `
+            `,
               )
               .join("")}
           </ul>
@@ -168,6 +170,10 @@ function renderUsersTable(el, items) {
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const currentUserId = currentUser.id ? String(currentUser.id) : null;
   el.innerHTML = `
+    <div class="admin-search-container">
+      <input type="text" class="admin-search-input" id="admin-search" placeholder="Search users by name, email, or role..." />
+      <i class="fas fa-search admin-search-icon"></i>
+    </div>
     <div class="admin-table-container">
       <table class="admin-table">
         <thead>
@@ -196,7 +202,7 @@ function renderUsersTable(el, items) {
                 }
               </td>
             </tr>
-          `
+          `,
             )
             .join("")}
         </tbody>
@@ -204,11 +210,18 @@ function renderUsersTable(el, items) {
       ${items.length === 0 ? '<p class="no-data">No users found.</p>' : ""}
     </div>
   `;
-  attachDeleteHandlers(el, "user", adminService.deleteUser, () => loadTabContent("users"));
+  attachDeleteHandlers(el, "user", adminService.deleteUser, () =>
+    loadTabContent("users"),
+  );
+  attachSearchHandler();
 }
 
 function renderTopicsTable(el, items) {
   el.innerHTML = `
+    <div class="admin-search-container">
+      <input type="text" class="admin-search-input" id="admin-search" placeholder="Search topics by title, category, or author..." />
+      <i class="fas fa-search admin-search-icon"></i>
+    </div>
     <div class="admin-table-container">
       <table class="admin-table">
         <thead>
@@ -235,7 +248,7 @@ function renderTopicsTable(el, items) {
               <td>${formatDate(t.createdAt)}</td>
               <td><button class="btn btn-sm btn-danger delete-btn" data-id="${t.id}" data-type="topic"><i class="fas fa-trash"></i> Delete</button></td>
             </tr>
-          `
+          `,
             )
             .join("")}
         </tbody>
@@ -247,10 +260,15 @@ function renderTopicsTable(el, items) {
     loadTabContent("topics");
     loadDashboard();
   });
+  attachSearchHandler();
 }
 
 function renderLawyersTable(el, items) {
   el.innerHTML = `
+    <div class="admin-search-container">
+      <input type="text" class="admin-search-input" id="admin-search" placeholder="Search lawyers by name, email, or practice area..." />
+      <i class="fas fa-search admin-search-icon"></i>
+    </div>
     <div class="admin-table-container">
       <table class="admin-table">
         <thead>
@@ -271,7 +289,7 @@ function renderLawyersTable(el, items) {
               <td>${(l.practiceAreas || []).join(", ") || "-"}</td>
               <td><button class="btn btn-sm btn-danger delete-btn" data-id="${l.id}" data-type="lawyer"><i class="fas fa-trash"></i> Delete</button></td>
             </tr>
-          `
+          `,
             )
             .join("")}
         </tbody>
@@ -283,10 +301,15 @@ function renderLawyersTable(el, items) {
     loadTabContent("lawyers");
     loadDashboard();
   });
+  attachSearchHandler();
 }
 
 function renderResourcesTable(el, items) {
   el.innerHTML = `
+    <div class="admin-search-container">
+      <input type="text" class="admin-search-input" id="admin-search" placeholder="Search resources by title, type, or category..." />
+      <i class="fas fa-search admin-search-icon"></i>
+    </div>
     <div class="admin-table-container">
       <table class="admin-table">
         <thead>
@@ -307,7 +330,7 @@ function renderResourcesTable(el, items) {
               <td>${r.category || "-"}</td>
               <td><button class="btn btn-sm btn-danger delete-btn" data-id="${r.id}" data-type="resource"><i class="fas fa-trash"></i> Delete</button></td>
             </tr>
-          `
+          `,
             )
             .join("")}
         </tbody>
@@ -319,10 +342,15 @@ function renderResourcesTable(el, items) {
     loadTabContent("resources");
     loadDashboard();
   });
+  attachSearchHandler();
 }
 
 function renderConsultationsTable(el, items) {
   el.innerHTML = `
+    <div class="admin-search-container">
+      <input type="text" class="admin-search-input" id="admin-search" placeholder="Search consultations by lawyer, client, or status..." />
+      <i class="fas fa-search admin-search-icon"></i>
+    </div>
     <div class="admin-table-container">
       <table class="admin-table">
         <thead>
@@ -345,7 +373,7 @@ function renderConsultationsTable(el, items) {
               <td><span class="badge badge-${c.status}">${c.status}</span></td>
               <td><button class="btn btn-sm btn-danger delete-btn" data-id="${c.id}" data-type="consultation"><i class="fas fa-trash"></i> Delete</button></td>
             </tr>
-          `
+          `,
             )
             .join("")}
         </tbody>
@@ -353,10 +381,16 @@ function renderConsultationsTable(el, items) {
       ${items.length === 0 ? '<p class="no-data">No consultations found.</p>' : ""}
     </div>
   `;
-  attachDeleteHandlers(el, "consultation", adminService.deleteConsultation, () => {
-    loadTabContent("consultations");
-    loadDashboard();
-  });
+  attachDeleteHandlers(
+    el,
+    "consultation",
+    adminService.deleteConsultation,
+    () => {
+      loadTabContent("consultations");
+      loadDashboard();
+    },
+  );
+  attachSearchHandler();
 }
 
 function attachDeleteHandlers(container, type, deleteFn, onSuccess) {
@@ -367,7 +401,10 @@ function attachDeleteHandlers(container, type, deleteFn, onSuccess) {
         btn.disabled = true;
         try {
           await deleteFn(id);
-          showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} deleted successfully`, "success");
+          showToast(
+            `${type.charAt(0).toUpperCase() + type.slice(1)} deleted successfully`,
+            "success",
+          );
           onSuccess();
         } catch (err) {
           showToast(err.response?.data?.message || "Delete failed", "error");
@@ -375,5 +412,44 @@ function attachDeleteHandlers(container, type, deleteFn, onSuccess) {
         }
       });
     });
+  });
+}
+
+function attachSearchHandler() {
+  const searchInput = document.getElementById("admin-search");
+  if (!searchInput) return;
+
+  searchInput.addEventListener("input", (e) => {
+    const searchTerm = e.target.value.toLowerCase().trim();
+    const table = document.querySelector(".admin-table tbody");
+    if (!table) return;
+
+    const rows = table.querySelectorAll("tr");
+    let visibleCount = 0;
+
+    rows.forEach((row) => {
+      const text = row.textContent.toLowerCase();
+      if (text.includes(searchTerm)) {
+        row.style.display = "";
+        visibleCount++;
+      } else {
+        row.style.display = "none";
+      }
+    });
+
+    // Show/hide no results message
+    const container = document.querySelector(".admin-table-container");
+    let noResults = container.querySelector(".no-search-results");
+
+    if (visibleCount === 0 && searchTerm) {
+      if (!noResults) {
+        noResults = document.createElement("p");
+        noResults.className = "no-search-results no-data";
+        noResults.textContent = "No results found for your search.";
+        container.appendChild(noResults);
+      }
+    } else if (noResults) {
+      noResults.remove();
+    }
   });
 }

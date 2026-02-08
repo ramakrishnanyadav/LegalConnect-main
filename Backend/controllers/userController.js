@@ -275,3 +275,145 @@ export const uploadUserProfileImage = async (req, res) => {
     });
   }
 };
+
+/**
+ * @desc    Change user password
+ * @route   PUT /api/users/change-password
+ * @access  Private
+ */
+export const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    // Validation
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide both current and new password",
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: "New password must be at least 6 characters",
+      });
+    }
+
+    // Get user with password
+    const user = await UserModel.findById(req.user.id).select("+password");
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Verify current password
+    const isMatch = await user.matchPassword(currentPassword);
+
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: "Current password is incorrect",
+      });
+    }
+
+    // Update password
+    user.password = newPassword;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "Password changed successfully",
+    });
+  } catch (error) {
+    console.error("Change password error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+/**
+ * @desc    Change user email
+ * @route   PUT /api/users/change-email
+ * @access  Private
+ */
+export const changeEmail = async (req, res) => {
+  try {
+    const { newEmail, password } = req.body;
+
+    // Validation
+    if (!newEmail || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide both new email and password",
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^\S+@\S+\.\S+$/;
+    if (!emailRegex.test(newEmail)) {
+      return res.status(400).json({
+        success: false,
+        message: "Please enter a valid email address",
+      });
+    }
+
+    // Get user with password
+    const user = await UserModel.findById(req.user.id).select("+password");
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Verify password
+    const isMatch = await user.matchPassword(password);
+
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: "Password is incorrect",
+      });
+    }
+
+    // Check if new email already exists
+    const emailExists = await UserModel.findOne({
+      email: newEmail.toLowerCase(),
+      _id: { $ne: user._id },
+    });
+
+    if (emailExists) {
+      return res.status(400).json({
+        success: false,
+        message: "This email is already in use",
+      });
+    }
+
+    // Update email
+    user.email = newEmail.toLowerCase();
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "Email changed successfully",
+      data: {
+        email: user.email,
+      },
+    });
+  } catch (error) {
+    console.error("Change email error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};

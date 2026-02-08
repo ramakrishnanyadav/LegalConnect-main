@@ -1,6 +1,6 @@
 import { userService, lawyerService, getProfileImageUrl } from "./api.js";
 import { showToast } from "../utils/toast.js";
-
+import { navigateTo } from "../components/navigation.js";
 import { translate } from "../utils/translations.js";
 import { loginSchema, signupSchema } from "../utils/formValidation.js";
 
@@ -37,21 +37,26 @@ export function setupAuth() {
         </a>
         <div class="profile-image-circle" id="profile-icon">
           <img src="${getProfileImageUrl(user.profileImage)}" alt="${
-      user.name
-    }" onerror="this.src='/lawyer.png'" crossorigin="anonymous">
+            user.name
+          }" onerror="this.src='/lawyer.png'" crossorigin="anonymous">
         </div>
         <span><span data-i18n="welcome">${translate("welcome")}</span>, ${
-      user.name
-    }</span>
+          user.name
+        }</span>
         <button id="logout-btn" class="btn btn-outline" data-i18n="logout">${translate(
-          "logout"
+          "logout",
         )}</button>
       </div>
     `;
 
     document.getElementById("logout-btn").addEventListener("click", () => {
+      showToast("Logged out successfully!", "success");
       localStorage.removeItem("user");
-      location.reload();
+      localStorage.removeItem("token");
+      setTimeout(() => {
+        navigateTo("home");
+        location.reload();
+      }, 500);
     });
 
     // Add click event to profile icon with image preload to ensure proper rendering
@@ -77,7 +82,7 @@ export function setupAuth() {
             import("../components/navigation.js").then((module) => {
               module.navigateTo(
                 lawyerId ? "lawyer-profile" : "user-profile",
-                lawyerId ? { id: lawyerId } : {}
+                lawyerId ? { id: lawyerId } : {},
               );
             });
           })
@@ -100,16 +105,24 @@ export function setupAuth() {
       bellEl.addEventListener("click", (e) => {
         e.preventDefault();
         if (user.role === "lawyer") {
-          lawyerService.getMyLawyerProfile().then((res) => {
-            const lawyerId = res.data?.data?.id;
-            import("../components/navigation.js").then((module) => {
-              module.navigateTo(lawyerId ? "lawyer-profile" : "user-profile", lawyerId ? { id: lawyerId, tab: "consultations" } : { tab: "consultations" });
+          lawyerService
+            .getMyLawyerProfile()
+            .then((res) => {
+              const lawyerId = res.data?.data?.id;
+              import("../components/navigation.js").then((module) => {
+                module.navigateTo(
+                  lawyerId ? "lawyer-profile" : "user-profile",
+                  lawyerId
+                    ? { id: lawyerId, tab: "consultations" }
+                    : { tab: "consultations" },
+                );
+              });
+            })
+            .catch(() => {
+              import("../components/navigation.js").then((module) => {
+                module.navigateTo("user-profile", { tab: "consultations" });
+              });
             });
-          }).catch(() => {
-            import("../components/navigation.js").then((module) => {
-              module.navigateTo("user-profile", { tab: "consultations" });
-            });
-          });
         } else {
           import("../components/navigation.js").then((module) => {
             module.navigateTo("user-profile", { tab: "consultations" });
@@ -122,7 +135,10 @@ export function setupAuth() {
         if (isLawyer) {
           const meRes = await lawyerService.getMyLawyerProfile();
           const lawyerId = meRes.data?.data?.id;
-          if (!lawyerId) { if (badgeEl) badgeEl.style.display = "none"; return; }
+          if (!lawyerId) {
+            if (badgeEl) badgeEl.style.display = "none";
+            return;
+          }
           const consRes = await lawyerService.getConsultations(lawyerId);
           const list = consRes.data?.data || [];
           const pending = list.filter((c) => c.status === "pending").length;
@@ -135,7 +151,9 @@ export function setupAuth() {
               const res = await lawyerService.getConsultations(lawyerId);
               const list = res.data?.data || [];
               const pending = list.filter((c) => c.status === "pending").length;
-              const badge = document.getElementById("consultation-notification-badge");
+              const badge = document.getElementById(
+                "consultation-notification-badge",
+              );
               if (badge) {
                 badge.textContent = pending > 99 ? "99+" : String(pending);
                 badge.style.display = pending > 0 ? "inline-flex" : "none";
@@ -153,7 +171,9 @@ export function setupAuth() {
             try {
               const r = await userService.getConsultationUnreadCount();
               const n = r.data?.data?.count ?? 0;
-              const badge = document.getElementById("consultation-notification-badge");
+              const badge = document.getElementById(
+                "consultation-notification-badge",
+              );
               if (badge) {
                 badge.textContent = n > 99 ? "99+" : String(n);
                 badge.style.display = n > 0 ? "inline-flex" : "none";
@@ -225,71 +245,71 @@ export function setupAuth() {
     // Handle form submit - use form scope to avoid duplicate IDs with other pages
     const loginForm = modal.querySelector("#login-form");
     loginForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
+      e.preventDefault();
 
-        const form = e.target;
-        const email = form.querySelector("#email").value;
-        const password = form.querySelector("#password").value;
-        const errorElement = form.querySelector("#login-error");
+      const form = e.target;
+      const email = form.querySelector("#email").value;
+      const password = form.querySelector("#password").value;
+      const errorElement = form.querySelector("#login-error");
 
-        try {
-          errorElement.style.display = "none";
+      try {
+        errorElement.style.display = "none";
 
-          // Validate form data using Zod
-          const validationResult = loginSchema.safeParse({ email, password });
+        // Validate form data using Zod
+        const validationResult = loginSchema.safeParse({ email, password });
 
-          if (!validationResult.success) {
-            const errorMessage = validationResult.error.issues[0].message;
-            errorElement.textContent = errorMessage;
-            errorElement.style.display = "block";
-            return;
-          }
-
-          const response = await userService.login(email, password);
-
-          // Check if the user type matches the selected type
-          const userRole = response.data.user.role;
-          if (
-            (selectedType === "lawyer" && userRole !== "lawyer") ||
-            (selectedType === "user" && userRole === "lawyer")
-          ) {
-            errorElement.textContent = `This account is not registered as a ${selectedType}. Please select the correct login type.`;
-            errorElement.style.display = "block";
-            return;
-          }
-
-          // Store the token and user data
-          localStorage.setItem(
-            "user",
-            JSON.stringify({
-              token: response.data.token,
-              name: response.data.user.name,
-              email: response.data.user.email,
-              mobile: response.data.user.mobile,
-              id: response.data.user.id,
-              role: response.data.user.role,
-              profileImage: response.data.user.profileImage,
-            })
-          );
-
-          document.body.removeChild(modal);
-          showLoggedInState({
-            name: response.data.user.name,
-            profileImage: response.data.user.profileImage,
-          });
-
-          // Replace this line:
-          // window.location.href = "/";
-
-          // With this:
-          window.location.reload();
-        } catch (error) {
-          console.error("Login error:", error);
-          errorElement.textContent =
-            error.response?.data?.message || "Login failed. Please try again.";
+        if (!validationResult.success) {
+          const errorMessage = validationResult.error.issues[0].message;
+          errorElement.textContent = errorMessage;
           errorElement.style.display = "block";
+          return;
         }
-      });
+
+        const response = await userService.login(email, password);
+
+        // Check if the user type matches the selected type
+        const userRole = response.data.user.role;
+        if (
+          (selectedType === "lawyer" && userRole !== "lawyer") ||
+          (selectedType === "user" && userRole === "lawyer")
+        ) {
+          errorElement.textContent = `This account is not registered as a ${selectedType}. Please select the correct login type.`;
+          errorElement.style.display = "block";
+          return;
+        }
+
+        // Store the token and user data
+        localStorage.setItem(
+          "user",
+          JSON.stringify({
+            token: response.data.token,
+            name: response.data.user.name,
+            email: response.data.user.email,
+            mobile: response.data.user.mobile,
+            id: response.data.user.id,
+            role: response.data.user.role,
+            profileImage: response.data.user.profileImage,
+          }),
+        );
+
+        document.body.removeChild(modal);
+        showLoggedInState({
+          name: response.data.user.name,
+          profileImage: response.data.user.profileImage,
+        });
+
+        // Replace this line:
+        // window.location.href = "/";
+
+        // With this:
+        window.location.reload();
+      } catch (error) {
+        console.error("Login error:", error);
+        errorElement.textContent =
+          error.response?.data?.message || "Login failed. Please try again.";
+        errorElement.style.display = "block";
+      }
+    });
   }
 
   function showSignupModal() {
@@ -361,87 +381,87 @@ export function setupAuth() {
     // Handle form submit - use form scope to avoid duplicate IDs with other pages
     const signupForm = modal.querySelector("#signup-form");
     signupForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
+      e.preventDefault();
 
-        const form = e.target;
-        const name = form.querySelector("#name").value;
-        const email = form.querySelector("#email").value;
-        const mobile = form.querySelector("#mobile").value;
-        const password = form.querySelector("#password").value;
-        const confirmPassword = form.querySelector("#confirm-password").value;
-        const errorElement = form.querySelector("#signup-error");
+      const form = e.target;
+      const name = form.querySelector("#name").value;
+      const email = form.querySelector("#email").value;
+      const mobile = form.querySelector("#mobile").value;
+      const password = form.querySelector("#password").value;
+      const confirmPassword = form.querySelector("#confirm-password").value;
+      const errorElement = form.querySelector("#signup-error");
 
-        try {
-          errorElement.style.display = "none";
+      try {
+        errorElement.style.display = "none";
 
-          // Validate form data using Zod
-          const validationResult = signupSchema.safeParse({
-            name,
-            email,
-            mobile,
-            password,
-            confirmPassword,
-          });
+        // Validate form data using Zod
+        const validationResult = signupSchema.safeParse({
+          name,
+          email,
+          mobile,
+          password,
+          confirmPassword,
+        });
 
-          if (!validationResult.success) {
-            const errorMessage = validationResult.error.issues[0].message;
-            errorElement.textContent = errorMessage;
-            errorElement.style.display = "block";
-            return;
-          }
-
-          // Include the role (user or lawyer) in registration data
-          const userData = {
-            name,
-            email,
-            mobile,
-            password,
-            role: selectedType, // Include the selected role type here
-          };
-
-          const response = await userService.register(userData);
-
-          // Store the token and user data
-          localStorage.setItem(
-            "user",
-            JSON.stringify({
-              token: response.data.token,
-              name: response.data.user.name,
-              email: response.data.user.email,
-              mobile: response.data.user.mobile,
-              id: response.data.user.id,
-              role: response.data.user.role,
-            })
-          );
-
-          document.body.removeChild(modal);
-
-          // If user selected to register as lawyer, redirect to lawyer registration page
-          if (selectedType === "lawyer") {
-            // Use the more reliable navigation function instead of trying to click an element
-            import("../components/navigation.js").then((module) => {
-              module.navigateTo("lawyer-register");
-            });
-          } else {
-            showLoggedInState({ name: response.data.user.name });
-            // Redirect to home page for regular users
-            window.location.href = "/";
-          }
-        } catch (error) {
-          console.error("Registration error:", error);
-          let message = "Registration failed. Please try again.";
-          if (!error.response) {
-            message =
-              "Cannot reach server. Check that the backend is running on port 5000 and try again.";
-          } else if (error.response.data?.message) {
-            message = error.response.data.message;
-          } else if (error.response.status === 500) {
-            message = "Server error. Check the backend console for details.";
-          }
-          errorElement.textContent = message;
+        if (!validationResult.success) {
+          const errorMessage = validationResult.error.issues[0].message;
+          errorElement.textContent = errorMessage;
           errorElement.style.display = "block";
+          return;
         }
-      });
+
+        // Include the role (user or lawyer) in registration data
+        const userData = {
+          name,
+          email,
+          mobile,
+          password,
+          role: selectedType, // Include the selected role type here
+        };
+
+        const response = await userService.register(userData);
+
+        // Store the token and user data
+        localStorage.setItem(
+          "user",
+          JSON.stringify({
+            token: response.data.token,
+            name: response.data.user.name,
+            email: response.data.user.email,
+            mobile: response.data.user.mobile,
+            id: response.data.user.id,
+            role: response.data.user.role,
+          }),
+        );
+
+        document.body.removeChild(modal);
+
+        // If user selected to register as lawyer, redirect to lawyer registration page
+        if (selectedType === "lawyer") {
+          // Use the more reliable navigation function instead of trying to click an element
+          import("../components/navigation.js").then((module) => {
+            module.navigateTo("lawyer-register");
+          });
+        } else {
+          showLoggedInState({ name: response.data.user.name });
+          // Redirect to home page for regular users
+          window.location.href = "/";
+        }
+      } catch (error) {
+        console.error("Registration error:", error);
+        let message = "Registration failed. Please try again.";
+        if (!error.response) {
+          message =
+            "Cannot reach server. Check that the backend is running on port 5000 and try again.";
+        } else if (error.response.data?.message) {
+          message = error.response.data.message;
+        } else if (error.response.status === 500) {
+          message = "Server error. Check the backend console for details.";
+        }
+        errorElement.textContent = message;
+        errorElement.style.display = "block";
+      }
+    });
   }
 }
 

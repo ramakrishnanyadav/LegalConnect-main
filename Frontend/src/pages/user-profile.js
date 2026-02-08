@@ -1,4 +1,8 @@
-import { userService, getProfileImageUrl } from "../services/api.js";
+import {
+  userService,
+  communityService,
+  getProfileImageUrl,
+} from "../services/api.js";
 import { showToast, showConfirm } from "../utils/toast.js";
 
 export async function renderUserProfilePage(initialTab) {
@@ -54,9 +58,18 @@ export async function renderUserProfilePage(initialTab) {
             </div>
             <div class="profile-info">
               <h1>${userProfile?.name || currentUser?.name}</h1>
-              <p><strong>Email:</strong> ${
-                userProfile?.email || currentUser?.email
-              }</p>
+              <p>
+                <strong>Email:</strong> ${userProfile?.email || currentUser?.email}
+                <button id="change-email-btn" class="btn btn-xs btn-link" title="Change email">
+                  <i class="fas fa-edit"></i>
+                </button>
+              </p>
+              <p>
+                <strong>Password:</strong> ••••••••
+                <button id="change-password-btn" class="btn btn-xs btn-link" title="Change password">
+                  <i class="fas fa-key"></i>
+                </button>
+              </p>
               <p><strong>Mobile:</strong> ${
                 userProfile?.mobile || currentUser?.mobile || "Not specified"
               }</p>
@@ -79,13 +92,34 @@ export async function renderUserProfilePage(initialTab) {
           <div class="profile-tabs">
             <button class="tab-btn ${initialTab === "consultations" ? "" : "active"}" data-tab="activities">Activities</button>
             <button class="tab-btn ${initialTab === "consultations" ? "active" : ""}" data-tab="consultations">Consultations</button>
-            <button class="tab-btn" data-tab="saved">Saved Resources</button>
           </div>
           
           <div class="profile-content">
             <div class="tab-content ${initialTab === "consultations" ? "" : "active"}" id="activities-tab">
               <h2>Recent Activities</h2>
-              <p>Your recent forum posts, comments, and interactions will appear here.</p>
+              
+              <div class="activities-container">
+                <div class="activity-section">
+                  <h3><i class="fas fa-pen"></i> My Posted Topics</h3>
+                  <div id="posted-topics-list">
+                    <div class="loading-spinner">Loading...</div>
+                  </div>
+                </div>
+                
+                <div class="activity-section">
+                  <h3><i class="fas fa-bookmark"></i> Saved Topics</h3>
+                  <div id="saved-topics-list">
+                    <div class="loading-spinner">Loading...</div>
+                  </div>
+                </div>
+                
+                <div class="activity-section">
+                  <h3><i class="fas fa-comments"></i> Topics I Commented On</h3>
+                  <div id="commented-topics-list">
+                    <div class="loading-spinner">Loading...</div>
+                  </div>
+                </div>
+              </div>
             </div>
             
             <div class="tab-content ${initialTab === "consultations" ? "active" : ""}" id="consultations-tab">
@@ -100,13 +134,6 @@ export async function renderUserProfilePage(initialTab) {
               
               <div class="consultations-container" id="consultations-container">
                 <div class="loading-spinner">Loading consultations...</div>
-              </div>
-            </div>
-            
-            <div class="tab-content" id="saved-tab">
-              <h2>Saved Resources</h2>
-              <div id="saved-resources-container">
-                <p>You haven't saved any resources yet.</p>
               </div>
             </div>
           </div>
@@ -133,6 +160,15 @@ export async function renderUserProfilePage(initialTab) {
       });
     });
 
+    // Load activities when user clicks Activities tab or when landing on activities
+    const activitiesTab = document.querySelector(
+      '.tab-btn[data-tab="activities"]',
+    );
+    activitiesTab.addEventListener("click", () => {
+      loadUserActivities();
+    });
+    if (!initialTab || initialTab === "activities") loadUserActivities();
+
     // Load consultations when user clicks Consultations tab or when landing with tab=consultations
     const consultationsTab = document.querySelector(
       '.tab-btn[data-tab="consultations"]',
@@ -154,6 +190,20 @@ export async function renderUserProfilePage(initialTab) {
       .getElementById("change-photo-btn")
       .addEventListener("click", () => {
         showChangePhotoModal(userProfile || currentUser);
+      });
+
+    // Setup change password button
+    document
+      .getElementById("change-password-btn")
+      .addEventListener("click", () => {
+        showChangePasswordModal();
+      });
+
+    // Setup change email button
+    document
+      .getElementById("change-email-btn")
+      .addEventListener("click", () => {
+        showChangeEmailModal(userProfile || currentUser);
       });
   } catch (error) {
     console.error("Error loading user profile:", error);
@@ -262,6 +312,108 @@ async function loadUserConsultations() {
       <div class="error-message">Failed to load your consultations. Please try again later.</div>
     `;
   }
+}
+
+// Load user activities (posted, saved, commented topics)
+async function loadUserActivities() {
+  try {
+    // Load all three types of activities in parallel
+    const [postedResponse, savedResponse, commentedResponse] =
+      await Promise.all([
+        communityService.getMyPostedTopics(),
+        communityService.getSavedTopics(),
+        communityService.getMyCommentedTopics(),
+      ]);
+
+    const postedTopics = postedResponse.data.data || [];
+    const savedTopics = savedResponse.data.data || [];
+    const commentedTopics = commentedResponse.data.data || [];
+
+    // Render each section
+    renderTopicsList(
+      "posted-topics-list",
+      postedTopics,
+      "You haven't posted any topics yet.",
+    );
+    renderTopicsList(
+      "saved-topics-list",
+      savedTopics,
+      "You haven't saved any topics yet.",
+    );
+    renderTopicsList(
+      "commented-topics-list",
+      commentedTopics,
+      "You haven't commented on any topics yet.",
+    );
+  } catch (error) {
+    console.error("Error loading activities:", error);
+    document.getElementById("posted-topics-list").innerHTML =
+      '<div class="error-message">Failed to load activities.</div>';
+    document.getElementById("saved-topics-list").innerHTML =
+      '<div class="error-message">Failed to load activities.</div>';
+    document.getElementById("commented-topics-list").innerHTML =
+      '<div class="error-message">Failed to load activities.</div>';
+  }
+}
+
+// Render topics list for activities
+function renderTopicsList(containerId, topics, emptyMessage) {
+  const container = document.getElementById(containerId);
+
+  if (!topics || topics.length === 0) {
+    container.innerHTML = `<p class="no-data">${emptyMessage}</p>`;
+    return;
+  }
+
+  container.innerHTML = topics
+    .map(
+      (topic) => `
+    <div class="activity-topic-item" data-id="${topic.id}">
+      <div class="activity-topic-content">
+        <h4 class="activity-topic-title">${topic.title}</h4>
+        <div class="activity-topic-meta">
+          <span class="category-badge">${topic.category}</span>
+          <span class="topic-stats">
+            <i class="fas fa-thumbs-up"></i> ${topic.voteScore || 0}
+            <i class="fas fa-comment"></i> ${topic.replyCount || 0}
+            <i class="fas fa-eye"></i> ${topic.views || 0}
+          </span>
+          <span class="topic-date">${formatTopicDate(topic.createdAt)}</span>
+        </div>
+      </div>
+    </div>
+  `,
+    )
+    .join("");
+
+  // Add click handlers to navigate to topic
+  container.querySelectorAll(".activity-topic-item").forEach((item) => {
+    item.addEventListener("click", () => {
+      const topicId = item.dataset.id;
+      window.location.hash = `#community?topic=${topicId}`;
+    });
+  });
+}
+
+// Format topic date for display
+function formatTopicDate(dateString) {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 // Render consultations (with Pay fee, Cancel, Reschedule)
@@ -900,4 +1052,225 @@ function showChangePhotoModal(user) {
 // Helper function to capitalize first letter
 function capitalizeFirst(string) {
   return string.charAt(0).toUpperCase() + string.slice(1);
+}
+
+// Show Change Password Modal
+function showChangePasswordModal() {
+  // Create modal HTML
+  const modal = document.createElement("div");
+  modal.className = "modal";
+  modal.innerHTML = `
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h2><i class="fas fa-key"></i> Change Password</h2>
+      <form id="change-password-form">
+        <div class="form-group">
+          <label for="current-password">Current Password:</label>
+          <input type="password" id="current-password" name="currentPassword" required minlength="6">
+        </div>
+        <div class="form-group">
+          <label for="new-password">New Password:</label>
+          <input type="password" id="new-password" name="newPassword" required minlength="6">
+        </div>
+        <div class="form-group">
+          <label for="confirm-password">Confirm New Password:</label>
+          <input type="password" id="confirm-password" name="confirmPassword" required minlength="6">
+        </div>
+        <div class="error-message" id="password-error" style="display: none; color: red; margin-bottom: 1rem;"></div>
+        <div class="modal-actions">
+          <button type="submit" class="btn btn-primary" id="save-password-btn">Change Password</button>
+          <button type="button" class="btn btn-secondary" id="cancel-password-btn">Cancel</button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  modal.style.display = "block";
+
+  const form = modal.querySelector("#change-password-form");
+  const errorElement = modal.querySelector("#password-error");
+  const saveBtn = modal.querySelector("#save-password-btn");
+
+  // Handle form submission
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    errorElement.style.display = "none";
+
+    const currentPassword = form.querySelector("#current-password").value;
+    const newPassword = form.querySelector("#new-password").value;
+    const confirmPassword = form.querySelector("#confirm-password").value;
+
+    // Validate passwords match
+    if (newPassword !== confirmPassword) {
+      errorElement.textContent = "New passwords do not match";
+      errorElement.style.display = "block";
+      return;
+    }
+
+    // Validate password length
+    if (newPassword.length < 6) {
+      errorElement.textContent = "Password must be at least 6 characters";
+      errorElement.style.display = "block";
+      return;
+    }
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Changing...";
+
+    try {
+      const response = await userService.changePassword({
+        currentPassword,
+        newPassword,
+      });
+
+      if (response.data && response.data.success) {
+        showToast("Password changed successfully!", "success");
+        document.body.removeChild(modal);
+      } else {
+        throw new Error(response.data?.message || "Failed to change password");
+      }
+    } catch (error) {
+      console.error("Change password error:", error);
+      errorElement.textContent =
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to change password. Please try again.";
+      errorElement.style.display = "block";
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Change Password";
+    }
+  });
+
+  // Handle cancel button click
+  modal.querySelector("#cancel-password-btn").addEventListener("click", () => {
+    document.body.removeChild(modal);
+  });
+
+  // Close modal when clicking on x
+  modal.querySelector(".close").addEventListener("click", () => {
+    document.body.removeChild(modal);
+  });
+
+  // Close modal when clicking outside
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) {
+      document.body.removeChild(modal);
+    }
+  });
+}
+
+// Show Change Email Modal
+function showChangeEmailModal(user) {
+  // Create modal HTML
+  const modal = document.createElement("div");
+  modal.className = "modal";
+  modal.innerHTML = `
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h2><i class="fas fa-envelope"></i> Change Email</h2>
+      <form id="change-email-form">
+        <div class="form-group">
+          <label for="current-email">Current Email:</label>
+          <input type="email" id="current-email" value="${user.email}" disabled>
+        </div>
+        <div class="form-group">
+          <label for="new-email">New Email:</label>
+          <input type="email" id="new-email" name="newEmail" required>
+        </div>
+        <div class="form-group">
+          <label for="password-confirm">Confirm Password:</label>
+          <input type="password" id="password-confirm" name="password" required minlength="6">
+          <small style="color: var(--gray-text);">Enter your password to confirm this change</small>
+        </div>
+        <div class="error-message" id="email-error" style="display: none; color: red; margin-bottom: 1rem;"></div>
+        <div class="modal-actions">
+          <button type="submit" class="btn btn-primary" id="save-email-btn">Change Email</button>
+          <button type="button" class="btn btn-secondary" id="cancel-email-btn">Cancel</button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  modal.style.display = "block";
+
+  const form = modal.querySelector("#change-email-form");
+  const errorElement = modal.querySelector("#email-error");
+  const saveBtn = modal.querySelector("#save-email-btn");
+
+  // Handle form submission
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    errorElement.style.display = "none";
+
+    const newEmail = form.querySelector("#new-email").value.trim();
+    const password = form.querySelector("#password-confirm").value;
+
+    // Validate email format
+    const emailRegex = /^\S+@\S+\.\S+$/;
+    if (!emailRegex.test(newEmail)) {
+      errorElement.textContent = "Please enter a valid email address";
+      errorElement.style.display = "block";
+      return;
+    }
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Changing...";
+
+    try {
+      const response = await userService.changeEmail({
+        newEmail,
+        password,
+      });
+
+      if (response.data && response.data.success) {
+        // Update the user object in localStorage with new email
+        const userData = JSON.parse(localStorage.getItem("user"));
+        if (userData) {
+          userData.email = response.data.data.email;
+          localStorage.setItem("user", JSON.stringify(userData));
+        }
+
+        showToast(
+          "Email changed successfully! Please log in with your new email next time.",
+          "success",
+        );
+        document.body.removeChild(modal);
+
+        // Reload the profile page to show updated email
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else {
+        throw new Error(response.data?.message || "Failed to change email");
+      }
+    } catch (error) {
+      console.error("Change email error:", error);
+      errorElement.textContent =
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to change email. Please try again.";
+      errorElement.style.display = "block";
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Change Email";
+    }
+  });
+
+  // Handle cancel button click
+  modal.querySelector("#cancel-email-btn").addEventListener("click", () => {
+    document.body.removeChild(modal);
+  });
+
+  // Close modal when clicking on x
+  modal.querySelector(".close").addEventListener("click", () => {
+    document.body.removeChild(modal);
+  });
+
+  // Close modal when clicking outside
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) {
+      document.body.removeChild(modal);
+    }
+  });
 }

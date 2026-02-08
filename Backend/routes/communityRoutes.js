@@ -12,6 +12,8 @@ import {
   saveTopic,
   unsaveTopic,
   getSavedTopics,
+  getUserPostedTopics,
+  getUserCommentedTopics,
   reportTopic,
   reportReply,
 } from "../controllers/communityController.js";
@@ -32,6 +34,10 @@ router.get("/topics/:id", optionalAuthenticate, getTopicById);
 // Saved topics - must be before /topics/:id/save to avoid conflict
 router.get("/saved", authenticate, getSavedTopics);
 
+// User's activity routes
+router.get("/my-topics", authenticate, getUserPostedTopics);
+router.get("/my-comments", authenticate, getUserCommentedTopics);
+
 // Protected routes that require authentication
 router.post("/topics", authenticate, createTopic);
 router.post("/topics/:id/save", authenticate, saveTopic);
@@ -45,7 +51,7 @@ router.put("/topics/:id/replies/:replyId/upvote", authenticate, upvoteReply);
 router.put(
   "/topics/:id/replies/:replyId/downvote",
   authenticate,
-  downvoteReply
+  downvoteReply,
 );
 
 export default router;

@@ -155,6 +155,16 @@ export const userService = {
     api.put(`/consultations/${consultationId}/cancel`),
   rescheduleConsultation: (consultationId, rescheduleData) =>
     api.put(`/consultations/${consultationId}/reschedule`, rescheduleData),
+
+  // Change password
+  changePassword: (passwordData) => {
+    return api.put("/users/change-password", passwordData);
+  },
+
+  // Change email
+  changeEmail: (emailData) => {
+    return api.put("/users/change-email", emailData);
+  },
 };
 
 // Lawyer API services
@@ -264,6 +274,8 @@ export const communityService = {
   reportReply: (topicId, replyId) =>
     api.post(`/community/topics/${topicId}/replies/${replyId}/report`),
   getSavedTopics: () => api.get("/community/saved"),
+  getMyPostedTopics: () => api.get("/community/my-topics"),
+  getMyCommentedTopics: () => api.get("/community/my-comments"),
 };
 
 // Admin API services

@@ -30,22 +30,35 @@ function removeReplyFromReplies(replies, replyId) {
  */
 export const getDashboardStats = async (req, res) => {
   try {
-    const [usersCount, lawyersCount, topicsCount, resourcesCount, consultationsCount, reportedTopics] =
-      await Promise.all([
-        UserModel.countDocuments(),
-        LawyerModel.countDocuments(),
-        TopicModel.countDocuments(),
-        ResourceModel.countDocuments(),
-        ConsultationModel.countDocuments(),
-        TopicModel.countDocuments({ reports: { $gt: 0 } }),
-      ]);
+    const [
+      usersCount,
+      lawyersCount,
+      topicsCount,
+      consultationsCount,
+      reportedTopics,
+    ] = await Promise.all([
+      UserModel.countDocuments(),
+      LawyerModel.countDocuments(),
+      TopicModel.countDocuments(),
+      ConsultationModel.countDocuments(),
+      TopicModel.countDocuments({ reports: { $exists: true, $ne: [] } }),
+    ]);
 
-    const topicsWithReports = await TopicModel.find({ reports: { $gt: 0 } })
-      .sort({ reports: -1 })
+    // Resources are mock data (11 hardcoded resources in resourceController)
+    const resourcesCount = 11;
+
+    const topicsWithReports = await TopicModel.find({
+      reports: { $exists: true, $ne: [] },
+    })
       .limit(10)
       .select("title reports createdAt")
       .populate("user", "name email")
       .lean();
+
+    // Sort by number of reports (array length) in descending order
+    const sortedTopics = topicsWithReports.sort(
+      (a, b) => (b.reports?.length || 0) - (a.reports?.length || 0),
+    );
 
     res.json({
       success: true,
@@ -56,10 +69,10 @@ export const getDashboardStats = async (req, res) => {
         resources: resourcesCount,
         consultations: consultationsCount,
         reportedTopicsCount: reportedTopics,
-        topReportedTopics: topicsWithReports.map((t) => ({
+        topReportedTopics: sortedTopics.slice(0, 10).map((t) => ({
           id: t._id.toString(),
           title: t.title,
-          reports: t.reports,
+          reports: t.reports?.length || 0,
           createdAt: t.createdAt,
           author: t.user?.name || "Unknown",
         })),
@@ -164,7 +177,7 @@ export const getTopics = async (req, res) => {
       id: t._id.toString(),
       title: t.title,
       category: t.category,
-      reports: t.reports || 0,
+      reports: Array.isArray(t.reports) ? t.reports.length : 0,
       views: t.views || 0,
       voteScore: t.voteScore || 0,
       createdAt: t.createdAt,
@@ -315,9 +328,7 @@ export const deleteLawyer = async (req, res) => {
  */
 export const getResources = async (req, res) => {
   try {
-    const resources = await ResourceModel.find()
-      .sort({ createdAt: -1 })
-      .lean();
+    const resources = await ResourceModel.find().sort({ createdAt: -1 }).lean();
 
     const data = resources.map((r) => ({
       id: r._id.toString(),
@@ -372,7 +383,10 @@ export const deleteResource = async (req, res) => {
 export const getConsultations = async (req, res) => {
   try {
     const consultations = await ConsultationModel.find()
-      .populate({ path: "lawyer", populate: { path: "user", select: "name email" } })
+      .populate({
+        path: "lawyer",
+        populate: { path: "user", select: "name email" },
+      })
       .populate("client", "name email")
       .sort({ createdAt: -1 })
       .lean();
@@ -404,7 +418,9 @@ export const getConsultations = async (req, res) => {
  */
 export const deleteConsultation = async (req, res) => {
   try {
-    const consultation = await ConsultationModel.findByIdAndDelete(req.params.id);
+    const consultation = await ConsultationModel.findByIdAndDelete(
+      req.params.id,
+    );
     if (!consultation) {
       return res.status(404).json({
         success: false,
