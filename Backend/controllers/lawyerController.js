@@ -54,7 +54,7 @@ export const getLawyers = async (req, res) => {
       const formattedLawyer = {
         id: lawyer._id,
         name: lawyer.user.name,
-        profileImage: lawyer.user.profileImage,
+        profileImage: lawyer.profileImage,
         practiceAreas: lawyer.practiceAreas,
         location: lawyer.officeAddress
           ? `${lawyer.officeAddress.city}, ${lawyer.officeAddress.state}`
@@ -368,11 +368,11 @@ export const getLawyerById = async (req, res) => {
       });
     }
 
-    // Use frontend-valid default image (User model may have "default-profile.png" which doesn't exist in frontend)
+    // Use frontend-valid default image
     const profileImage =
-      lawyer.user.profileImage &&
-      lawyer.user.profileImage !== "default-profile.png"
-        ? lawyer.user.profileImage
+      lawyer.profileImage &&
+      lawyer.profileImage !== "/lawyer.png"
+        ? lawyer.profileImage
         : "/lawyer.png";
 
     // Format response data (userId so frontend can detect profile owner and show Consultations tab)

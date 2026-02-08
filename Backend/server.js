@@ -92,6 +92,9 @@ app.use(async (req, res, next) => {
   }
 });
 
+// Serve static files from uploads directory
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
 // Initialize Auth.js
 initAuth(app);
 
