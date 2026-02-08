@@ -11,6 +11,11 @@ const consultationSchema = new mongoose.Schema({
     ref: "User",
     required: true,
   },
+  scheduledDateTime: {
+    type: Date,
+    required: true,
+    index: true,
+  },
   date: {
     type: Date,
     required: true,

@@ -3,26 +3,50 @@ import UserModel from "../models/User.js";
 import LawyerModel from "../models/Lawyer.js";
 
 /**
+ * Helper function to create UTC datetime from date, time, and timezone offset
+ * @param {string} date - Date in format YYYY-MM-DD
+ * @param {string} time - Time in format HH:MM (24-hour)
+ * @param {number} timezoneOffset - Timezone offset in minutes from UTC (e.g., -330 for IST)
+ * @returns {Date} UTC datetime
+ */
+function createUTCDateTime(date, time, timezoneOffset = 0) {
+  // Parse date and time
+  const [year, month, day] = date.split("-").map(Number);
+  const [hours, minutes] = time.split(":").map(Number);
+
+  // Create date in local timezone
+  const localDate = new Date(year, month - 1, day, hours, minutes, 0, 0);
+
+  // If timezoneOffset is provided, adjust to UTC
+  // timezoneOffset is in minutes (e.g., -330 for IST which is UTC+5:30)
+  // We need to subtract it to get UTC
+  if (timezoneOffset !== 0) {
+    const utcTime = localDate.getTime() - timezoneOffset * 60000;
+    return new Date(utcTime);
+  }
+
+  // Otherwise return as UTC (assuming input was UTC)
+  return new Date(Date.UTC(year, month - 1, day, hours, minutes, 0, 0));
+}
+
+/**
  * Mark consultations as completed when their date+time has passed (status: accepted).
  * Call before returning lawyer or client consultation lists.
+ * Uses scheduledDateTime field which stores the complete UTC datetime.
  */
 async function markPastConsultationsCompleted() {
-  const accepted = await ConsultationModel.find({
-    status: "accepted",
-  });
   const now = new Date();
-  for (const c of accepted) {
-    const d = new Date(c.date);
-    const parts = String(c.time || "00:00").trim().split(":");
-    const hours = parseInt(parts[0], 10) || 0;
-    const minutes = parseInt(parts[1], 10) || 0;
-    d.setHours(hours, minutes, 0, 0);
-    if (d <= now) {
-      await ConsultationModel.findByIdAndUpdate(c._id, {
-        status: "completed",
-      });
-    }
-  }
+
+  // Update all accepted consultations where scheduledDateTime has passed
+  await ConsultationModel.updateMany(
+    {
+      status: "accepted",
+      scheduledDateTime: { $lte: now },
+    },
+    {
+      status: "completed",
+    },
+  );
 }
 
 /**
@@ -64,7 +88,10 @@ export const getLawyerConsultations = async (req, res) => {
     // Format consultations (legacy "rescheduled" shown as "accepted")
     const formattedConsultations = consultations.map((consultation) => {
       const client = consultation.client;
-      const status = consultation.status === "rescheduled" ? "accepted" : consultation.status;
+      const status =
+        consultation.status === "rescheduled"
+          ? "accepted"
+          : consultation.status;
       return {
         id: consultation._id,
         date: consultation.date,
@@ -125,25 +152,28 @@ export const getClientConsultations = async (req, res) => {
 
     // Format consultations (legacy "rescheduled" shown as "accepted")
     const formattedConsultations = consultations.map((consultation) => {
-      const status = consultation.status === "rescheduled" ? "accepted" : consultation.status;
+      const status =
+        consultation.status === "rescheduled"
+          ? "accepted"
+          : consultation.status;
       return {
-      id: consultation._id,
-      date: consultation.date,
-      time: consultation.time,
-      type: consultation.type,
-      notes: consultation.notes,
-      status,
-      message: consultation.message,
-      lawyer: {
-        id: consultation.lawyer._id,
-        name: consultation.lawyer.user.name,
-        profileImage: consultation.lawyer.user.profileImage,
-        consultationFee: consultation.lawyer.consultationFee ?? 0,
-      },
-      paid: consultation.paid ?? false,
-      rescheduleRequests: consultation.rescheduleRequests || [],
-      createdAt: consultation.createdAt,
-    };
+        id: consultation._id,
+        date: consultation.date,
+        time: consultation.time,
+        type: consultation.type,
+        notes: consultation.notes,
+        status,
+        message: consultation.message,
+        lawyer: {
+          id: consultation.lawyer._id,
+          name: consultation.lawyer.user.name,
+          profileImage: consultation.lawyer.user.profileImage,
+          consultationFee: consultation.lawyer.consultationFee ?? 0,
+        },
+        paid: consultation.paid ?? false,
+        rescheduleRequests: consultation.rescheduleRequests || [],
+        createdAt: consultation.createdAt,
+      };
     });
 
     res.json({
@@ -168,7 +198,7 @@ export const getClientConsultations = async (req, res) => {
  */
 export const scheduleConsultation = async (req, res) => {
   try {
-    const { date, time, type, notes } = req.body;
+    const { date, time, type, notes, timezoneOffset } = req.body;
 
     // Validate required fields
     if (!date || !time || !type) {
@@ -187,11 +217,24 @@ export const scheduleConsultation = async (req, res) => {
       });
     }
 
+    // Create scheduledDateTime in UTC from date + time + timezoneOffset
+    // Date is in format: YYYY-MM-DD, Time is in format: HH:MM
+    const scheduledDateTime = createUTCDateTime(date, time, timezoneOffset);
+
+    // Validate that the scheduled time is in the future
+    if (scheduledDateTime <= new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: "Consultation must be scheduled for a future date and time",
+      });
+    }
+
     // Create new consultation
     const consultation = await ConsultationModel.create({
       lawyer: req.params.id,
       client: req.user.id,
-      date,
+      scheduledDateTime,
+      date: new Date(date),
       time,
       type,
       notes,
@@ -231,7 +274,7 @@ export const updateConsultationStatus = async (req, res) => {
 
     // Find consultation
     const consultation = await ConsultationModel.findById(
-      req.params.id
+      req.params.id,
     ).populate({
       path: "lawyer",
     });
@@ -278,7 +321,7 @@ export const updateConsultationStatus = async (req, res) => {
 export const cancelConsultation = async (req, res) => {
   try {
     const consultation = await ConsultationModel.findById(
-      req.params.id
+      req.params.id,
     ).populate({ path: "lawyer" });
 
     if (!consultation) {
@@ -342,7 +385,7 @@ export const cancelConsultation = async (req, res) => {
  */
 export const rescheduleConsultation = async (req, res) => {
   try {
-    const { date, time, message } = req.body;
+    const { date, time, message, timezoneOffset } = req.body;
 
     if (!date || !time) {
       return res.status(400).json({
@@ -352,7 +395,7 @@ export const rescheduleConsultation = async (req, res) => {
     }
 
     const consultation = await ConsultationModel.findById(
-      req.params.id
+      req.params.id,
     ).populate({ path: "lawyer" });
 
     if (!consultation) {
@@ -393,6 +436,17 @@ export const rescheduleConsultation = async (req, res) => {
       });
     }
 
+    // Create new scheduledDateTime in UTC
+    const scheduledDateTime = createUTCDateTime(date, time, timezoneOffset);
+
+    // Validate that the rescheduled time is in the future
+    if (scheduledDateTime <= new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: "Consultation must be rescheduled for a future date and time",
+      });
+    }
+
     const newDate = new Date(date);
     consultation.rescheduleRequests.push({
       date: newDate,
@@ -401,9 +455,14 @@ export const rescheduleConsultation = async (req, res) => {
       requestedBy: req.user.id,
     });
 
+    consultation.scheduledDateTime = scheduledDateTime;
     consultation.date = newDate;
     consultation.time = time;
-    consultation.message = message || (isLawyer ? "Reschedule requested by lawyer." : "Reschedule requested by client.");
+    consultation.message =
+      message ||
+      (isLawyer
+        ? "Reschedule requested by lawyer."
+        : "Reschedule requested by client.");
 
     if (isLawyer) {
       consultation.status = "accepted";
@@ -416,7 +475,11 @@ export const rescheduleConsultation = async (req, res) => {
 
     res.json({
       success: true,
-      data: { status: consultation.status, date: consultation.date, time: consultation.time },
+      data: {
+        status: consultation.status,
+        date: consultation.date,
+        time: consultation.time,
+      },
       message: isLawyer
         ? "Reschedule sent. User will see the new date/time."
         : "Reschedule requested. Lawyer will need to accept the new time.",
@@ -462,7 +525,7 @@ export const markClientConsultationsRead = async (req, res) => {
   try {
     await ConsultationModel.updateMany(
       { client: req.user.id },
-      { unreadByClient: false }
+      { unreadByClient: false },
     );
     res.json({ success: true, message: "Marked as read" });
   } catch (error) {

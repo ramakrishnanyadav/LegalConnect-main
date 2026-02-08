@@ -64,7 +64,7 @@ api.interceptors.request.use(
     config.headers["Accept-Language"] = currentLang;
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => Promise.reject(error),
 );
 
 // Add response interceptor for handling auth errors
@@ -99,7 +99,7 @@ api.interceptors.response.use(
       }
     }
     return Promise.reject(error);
-  }
+  },
 );
 
 // User API services
@@ -150,8 +150,7 @@ export const userService = {
   },
   getConsultationUnreadCount: () =>
     api.get("/users/consultations/unread-count"),
-  markConsultationsRead: () =>
-    api.post("/users/consultations/mark-read"),
+  markConsultationsRead: () => api.post("/users/consultations/mark-read"),
   cancelConsultation: (consultationId) =>
     api.put(`/consultations/${consultationId}/cancel`),
   rescheduleConsultation: (consultationId, rescheduleData) =>
@@ -166,7 +165,7 @@ export const lawyerService = {
 
       if (filters.practiceArea) {
         queryParams.push(
-          `practiceArea=${encodeURIComponent(filters.practiceArea)}`
+          `practiceArea=${encodeURIComponent(filters.practiceArea)}`,
         );
       }
 
@@ -176,7 +175,7 @@ export const lawyerService = {
 
       if (filters.serviceType) {
         queryParams.push(
-          `serviceType=${encodeURIComponent(filters.serviceType)}`
+          `serviceType=${encodeURIComponent(filters.serviceType)}`,
         );
       }
 
@@ -240,8 +239,6 @@ export const resourceService = {
   getResources: (filters) => api.get("/resources", { params: filters }),
   getResourceById: (id) => api.get(`/resources/${id}`),
   getResourceCategories: () => api.get("/resources/categories"),
-  incrementView: (id) => api.put(`/resources/${id}/view`),
-  incrementDownload: (id) => api.put(`/resources/${id}/download`),
   getApiUrl: () => API_URL,
 };
 
@@ -259,7 +256,7 @@ export const communityService = {
     api.put(
       `/community/topics/${topicId}/replies/${replyId}/${
         direction === "up" ? "upvote" : "downvote"
-      }`
+      }`,
     ),
   saveTopic: (topicId) => api.post(`/community/topics/${topicId}/save`),
   unsaveTopic: (topicId) => api.delete(`/community/topics/${topicId}/save`),

@@ -48,8 +48,8 @@ export async function renderUserProfilePage(initialTab) {
           <div class="profile-header">
             <div class="profile-image">
               <img src="${getProfileImageUrl(userProfile?.profileImage)}" alt="${
-      userProfile?.name || currentUser?.name
-    }" onerror="this.src='/lawyer.png'">
+                userProfile?.name || currentUser?.name
+              }" onerror="this.src='/lawyer.png'">
               <button id="change-photo-btn" class="btn btn-sm btn-outline"><i class="fas fa-camera"></i> Change Photo</button>
             </div>
             <div class="profile-info">
@@ -134,7 +134,9 @@ export async function renderUserProfilePage(initialTab) {
     });
 
     // Load consultations when user clicks Consultations tab or when landing with tab=consultations
-    const consultationsTab = document.querySelector('.tab-btn[data-tab="consultations"]');
+    const consultationsTab = document.querySelector(
+      '.tab-btn[data-tab="consultations"]',
+    );
     consultationsTab.addEventListener("click", () => {
       loadUserConsultations();
     });
@@ -174,7 +176,7 @@ export async function renderUserProfilePage(initialTab) {
 // Load user consultations data
 async function loadUserConsultations() {
   const consultationsContainer = document.getElementById(
-    "consultations-container"
+    "consultations-container",
   );
 
   try {
@@ -195,37 +197,50 @@ async function loadUserConsultations() {
     consultationsContainer.innerHTML = renderConsultations(consultations);
 
     // Pay button: placeholder until payment gateway is integrated
-    consultationsContainer.querySelectorAll(".pay-consultation-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        showToast("Payment gateway will be integrated soon. You can pay the consultation fee then.", "info");
+    consultationsContainer
+      .querySelectorAll(".pay-consultation-btn")
+      .forEach((btn) => {
+        btn.addEventListener("click", () => {
+          showToast(
+            "Payment gateway will be integrated soon. You can pay the consultation fee then.",
+            "info",
+          );
+        });
       });
-    });
 
     // Cancel: confirm no refund, then cancel
-    consultationsContainer.querySelectorAll(".cancel-consultation-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const id = btn.dataset.id;
-        showConfirm(
-          "Cancel this consultation? No refund will be given.",
-          async () => {
-            try {
-              await userService.cancelConsultation(id);
-              showToast("Consultation cancelled.", "success");
-              loadUserConsultations();
-            } catch (err) {
-              showToast(err.response?.data?.message || "Failed to cancel consultation.", "error");
-            }
-          }
-        );
+    consultationsContainer
+      .querySelectorAll(".cancel-consultation-btn")
+      .forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const id = btn.dataset.id;
+          showConfirm(
+            "Cancel this consultation? No refund will be given.",
+            async () => {
+              try {
+                await userService.cancelConsultation(id);
+                showToast("Consultation cancelled.", "success");
+                loadUserConsultations();
+              } catch (err) {
+                showToast(
+                  err.response?.data?.message ||
+                    "Failed to cancel consultation.",
+                  "error",
+                );
+              }
+            },
+          );
+        });
       });
-    });
 
     // Reschedule: open modal, then submit
-    consultationsContainer.querySelectorAll(".reschedule-consultation-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        showUserRescheduleModal(btn.dataset.id, loadUserConsultations);
+    consultationsContainer
+      .querySelectorAll(".reschedule-consultation-btn")
+      .forEach((btn) => {
+        btn.addEventListener("click", () => {
+          showUserRescheduleModal(btn.dataset.id, loadUserConsultations);
+        });
       });
-    });
 
     // Add filter functionality
     document.querySelectorAll(".consultation-filter-btn").forEach((btn) => {
@@ -256,19 +271,33 @@ function renderConsultations(consultations) {
   }
 
   return consultations
-    .map(
-      (consultation) => {
-        const fee =
-          consultation.lawyer?.consultationFee != null
-            ? Number(consultation.lawyer.consultationFee)
-            : 0;
-        const showPay = consultation.status === "accepted" && fee > 0 && !consultation.paid;
-        const canReschedule = (consultation.status === "pending" || consultation.status === "accepted") && consultation.paid && (consultation.rescheduleRequests || []).length < 1;
-        const showActions = ["pending", "accepted"].includes(consultation.status);
-        return `
+    .map((consultation) => {
+      const fee =
+        consultation.lawyer?.consultationFee != null
+          ? Number(consultation.lawyer.consultationFee)
+          : 0;
+      const showPay =
+        consultation.status === "accepted" && fee > 0 && !consultation.paid;
+      const canReschedule =
+        (consultation.status === "pending" ||
+          consultation.status === "accepted") &&
+        consultation.paid &&
+        (consultation.rescheduleRequests || []).length < 1;
+      const showActions = ["pending", "accepted"].includes(consultation.status);
+
+      // Format date and time in user's local timezone
+      const consultationDate = new Date(consultation.date);
+      const formattedDate = consultationDate.toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        weekday: "short",
+      });
+
+      return `
     <div class="consultation-item ${consultation.status}" data-status="${
-          consultation.status
-        }">
+      consultation.status
+    }">
       <div class="consultation-header">
         <div class="consultation-lawyer">
           <div class="profile-image-circle">
@@ -287,9 +316,7 @@ function renderConsultations(consultations) {
       </div>
       
       <div class="consultation-details">
-        <p><strong>Date:</strong> ${new Date(
-          consultation.date
-        ).toLocaleDateString()}</p>
+        <p><strong>Date:</strong> ${formattedDate}</p>
         <p><strong>Time:</strong> ${consultation.time}</p>
         <p><strong>Type:</strong> ${consultation.type}</p>
         <p><strong>Issue:</strong> ${consultation.notes || "Not provided"}</p>
@@ -321,8 +348,7 @@ function renderConsultations(consultations) {
       </div>
     </div>
   `;
-      }
-    )
+    })
     .join("");
 }
 
@@ -347,7 +373,7 @@ function showUserRescheduleModal(consultationId, onSuccess) {
     <div class="modal-content">
       <span class="close">&times;</span>
       <h2>Request Reschedule</h2>
-      <p class="form-help">Your request will set the consultation back to pending. The lawyer will need to accept the new time.</p>
+      <p class="form-help">Your request will set the consultation back to pending. The lawyer will need to accept the new time. All times are in your local timezone (${Intl.DateTimeFormat().resolvedOptions().timeZone})</p>
       <form id="user-reschedule-form">
         <div class="form-group">
           <label for="user-reschedule-date">New Date</label>
@@ -375,22 +401,45 @@ function showUserRescheduleModal(consultationId, onSuccess) {
     </div>
   `;
   document.body.appendChild(modal);
-  modal.querySelector(".close").addEventListener("click", () => document.body.removeChild(modal));
-  modal.addEventListener("click", (e) => { if (e.target === modal) document.body.removeChild(modal); });
-  document.getElementById("user-reschedule-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const date = document.getElementById("user-reschedule-date").value;
-    const time = document.getElementById("user-reschedule-time").value;
-    const message = document.getElementById("user-reschedule-message").value.trim();
-    try {
-      await userService.rescheduleConsultation(consultationId, { date, time, message: message || undefined });
-      document.body.removeChild(modal);
-      showToast("Reschedule requested. Lawyer will need to accept the new time.", "success");
-      if (typeof onSuccess === "function") onSuccess();
-    } catch (err) {
-      showToast(err.response?.data?.message || "Failed to request reschedule.", "error");
-    }
+  modal
+    .querySelector(".close")
+    .addEventListener("click", () => document.body.removeChild(modal));
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) document.body.removeChild(modal);
   });
+  document
+    .getElementById("user-reschedule-form")
+    .addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const date = document.getElementById("user-reschedule-date").value;
+      const time = document.getElementById("user-reschedule-time").value;
+      const message = document
+        .getElementById("user-reschedule-message")
+        .value.trim();
+
+      // Get user's timezone offset in minutes
+      const timezoneOffset = new Date().getTimezoneOffset();
+
+      try {
+        await userService.rescheduleConsultation(consultationId, {
+          date,
+          time,
+          message: message || undefined,
+          timezoneOffset: -timezoneOffset, // Negate because getTimezoneOffset returns opposite sign
+        });
+        document.body.removeChild(modal);
+        showToast(
+          "Reschedule requested. Lawyer will need to accept the new time.",
+          "success",
+        );
+        if (typeof onSuccess === "function") onSuccess();
+      } catch (err) {
+        showToast(
+          err.response?.data?.message || "Failed to request reschedule.",
+          "error",
+        );
+      }
+    });
 }
 
 // Show modal for editing user profile
@@ -530,7 +579,7 @@ function showEditProfileModal(user) {
               renderUserProfilePage();
             } else {
               throw new Error(
-                response.data.message || "Failed to update profile"
+                response.data.message || "Failed to update profile",
               );
             }
           } catch (error) {
@@ -670,7 +719,7 @@ function showEditProfileModal(user) {
               renderUserProfilePage();
             } else {
               throw new Error(
-                response.data.message || "Failed to update profile"
+                response.data.message || "Failed to update profile",
               );
             }
           } catch (error) {

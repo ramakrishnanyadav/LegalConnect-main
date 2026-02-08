@@ -97,7 +97,7 @@ export function renderLawyersPage() {
         // Set a small timeout to ensure modal is loaded before selecting the lawyer option
         setTimeout(() => {
           const lawyerOption = document.querySelector(
-            '.signup-type-btn[data-type="lawyer"]'
+            '.signup-type-btn[data-type="lawyer"]',
           );
           if (lawyerOption) lawyerOption.click();
         }, 300);
@@ -121,7 +121,7 @@ export function renderLawyersPage() {
         // Set a small timeout to ensure modal is loaded before selecting the lawyer option
         setTimeout(() => {
           const lawyerOption = document.querySelector(
-            '.signup-type-btn[data-type="lawyer"]'
+            '.signup-type-btn[data-type="lawyer"]',
           );
           if (lawyerOption) lawyerOption.click();
         }, 300);
@@ -229,7 +229,7 @@ function requestUserLocation() {
             '<span style="color: var(--warning-color);"><i class="fas fa-exclamation-circle"></i> Unknown error occurred</span>';
       }
     },
-    { maximumAge: 60000, timeout: 10000, enableHighAccuracy: true }
+    { maximumAge: 60000, timeout: 10000, enableHighAccuracy: true },
   );
 }
 
@@ -237,7 +237,7 @@ function requestUserLocation() {
 async function fetchLocationDetails(latitude, longitude) {
   try {
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10`
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10`,
     );
 
     if (!response.ok) {
@@ -329,7 +329,7 @@ async function loadLawyers(filters = {}) {
             userLocation.latitude,
             userLocation.longitude,
             lawyer.officeCoordinates.latitude,
-            lawyer.officeCoordinates.longitude
+            lawyer.officeCoordinates.longitude,
           );
         } else {
           lawyer.distance = Infinity; // Lawyers without coordinates go to the end
@@ -338,7 +338,7 @@ async function loadLawyers(filters = {}) {
 
       // Then sort by distance
       lawyers.sort(
-        (a, b) => (a.distance || Infinity) - (b.distance || Infinity)
+        (a, b) => (a.distance || Infinity) - (b.distance || Infinity),
       );
 
       // Add a note to the top of the results if sorting by location
@@ -352,9 +352,15 @@ async function loadLawyers(filters = {}) {
     // Build HTML for each lawyer (safe array joins)
     const lawyersHTML = lawyers
       .map((lawyer) => {
-        const practiceAreas = Array.isArray(lawyer.practiceAreas) ? lawyer.practiceAreas.join(", ") : "—";
-        const serviceTypes = Array.isArray(lawyer.serviceTypes) ? lawyer.serviceTypes.join(", ") : "—";
-        const languages = Array.isArray(lawyer.languages) ? lawyer.languages.join(", ") : "—";
+        const practiceAreas = Array.isArray(lawyer.practiceAreas)
+          ? lawyer.practiceAreas.join(", ")
+          : "—";
+        const serviceTypes = Array.isArray(lawyer.serviceTypes)
+          ? lawyer.serviceTypes.join(", ")
+          : "—";
+        const languages = Array.isArray(lawyer.languages)
+          ? lawyer.languages.join(", ")
+          : "—";
         const location = lawyer.location || "Location not specified";
         const rating = lawyer.rating ?? 0;
         const reviewCount = lawyer.reviewCount ?? 0;
@@ -363,14 +369,16 @@ async function loadLawyers(filters = {}) {
             ? `
             <div class="lawyer-distance">
               <i class="fas fa-map-marker-alt"></i>
-              ${lawyer.distance != null
-                ? lawyer.distance.toFixed(1)
-                : calculateDistance(
-                    userLocation.latitude,
-                    userLocation.longitude,
-                    lawyer.officeCoordinates.latitude,
-                    lawyer.officeCoordinates.longitude
-                  ).toFixed(1)} km away
+              ${
+                lawyer.distance != null
+                  ? lawyer.distance.toFixed(1)
+                  : calculateDistance(
+                      userLocation.latitude,
+                      userLocation.longitude,
+                      lawyer.officeCoordinates.latitude,
+                      lawyer.officeCoordinates.longitude,
+                    ).toFixed(1)
+              } km away
             </div>`
             : "";
         return `
@@ -493,6 +501,7 @@ function showSchedulingModal(lawyerName, lawyerId) {
     <div class="modal-content">
       <span class="close">&times;</span>
       <h2>Schedule a Consultation with ${lawyerName}</h2>
+      <p class="form-help">All times are in your local timezone (${Intl.DateTimeFormat().resolvedOptions().timeZone})</p>
       <form id="scheduling-form">
         <div class="form-group">
           <label for="consultation-date">Date</label>
@@ -545,35 +554,52 @@ function showSchedulingModal(lawyerName, lawyerId) {
   });
 
   // Handle form submit - create consultation via API
-  document.getElementById("scheduling-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const dateEl = document.getElementById("consultation-date");
-    const timeEl = document.getElementById("consultation-time");
-    const typeEl = document.getElementById("consultation-type");
-    const notesEl = document.getElementById("consultation-notes");
-    const submitBtn = modal.querySelector('button[type="submit"]');
-    const date = dateEl?.value;
-    const time = timeEl?.value;
-    const type = typeEl?.value;
-    const notes = (notesEl?.value || "").trim();
-    if (!date || !time || !type) {
-      showToast("Please fill in date, time, and consultation type.", "error");
-      return;
-    }
-    submitBtn.disabled = true;
-    submitBtn.textContent = "Sending...";
-    try {
-      await lawyerService.scheduleConsultation(lawyerId, { date, time, type, notes: notes || undefined });
-      document.body.removeChild(modal);
-      showToast(`Consultation request sent to ${lawyerName}. They will confirm or respond soon.`, "success");
-    } catch (err) {
-      console.error("Schedule consultation error:", err);
-      submitBtn.disabled = false;
-      submitBtn.textContent = "Request Consultation";
-      const msg = err.response?.status === 401
-        ? "Please log in to request a consultation."
-        : (err.response?.data?.message || "Failed to send request. Please try again.");
-      showToast(msg, "error");
-    }
-  });
+  document
+    .getElementById("scheduling-form")
+    .addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const dateEl = document.getElementById("consultation-date");
+      const timeEl = document.getElementById("consultation-time");
+      const typeEl = document.getElementById("consultation-type");
+      const notesEl = document.getElementById("consultation-notes");
+      const submitBtn = modal.querySelector('button[type="submit"]');
+      const date = dateEl?.value;
+      const time = timeEl?.value;
+      const type = typeEl?.value;
+      const notes = (notesEl?.value || "").trim();
+      if (!date || !time || !type) {
+        showToast("Please fill in date, time, and consultation type.", "error");
+        return;
+      }
+
+      // Get user's timezone offset in minutes
+      const timezoneOffset = new Date().getTimezoneOffset();
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Sending...";
+      try {
+        await lawyerService.scheduleConsultation(lawyerId, {
+          date,
+          time,
+          type,
+          notes: notes || undefined,
+          timezoneOffset: -timezoneOffset, // Negate because getTimezoneOffset returns opposite sign
+        });
+        document.body.removeChild(modal);
+        showToast(
+          `Consultation request sent to ${lawyerName}. They will confirm or respond soon.`,
+          "success",
+        );
+      } catch (err) {
+        console.error("Schedule consultation error:", err);
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Request Consultation";
+        const msg =
+          err.response?.status === 401
+            ? "Please log in to request a consultation."
+            : err.response?.data?.message ||
+              "Failed to send request. Please try again.";
+        showToast(msg, "error");
+      }
+    });
 }

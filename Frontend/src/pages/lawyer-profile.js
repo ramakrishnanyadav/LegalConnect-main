@@ -32,16 +32,14 @@ export async function renderLawyerProfilePage(lawyerId, initialTab) {
       ? JSON.parse(localStorage.getItem("user"))
       : null;
     const isProfileOwner =
-      currentUser &&
-      String(lawyer.userId) === String(currentUser.id);
+      currentUser && String(lawyer.userId) === String(currentUser.id);
 
     // Fetch consultations if the current user is the lawyer
     let consultations = [];
     if (isProfileOwner) {
       try {
-        const consultationsResponse = await lawyerService.getConsultations(
-          lawyerId
-        );
+        const consultationsResponse =
+          await lawyerService.getConsultations(lawyerId);
         consultations = consultationsResponse.data.data || [];
       } catch (error) {
         console.error("Error fetching consultations:", error);
@@ -55,7 +53,7 @@ export async function renderLawyerProfilePage(lawyerId, initialTab) {
         const userConsRes = await userService.getUserConsultations();
         const userCons = userConsRes.data?.data || [];
         hasPaidConsultationWithLawyer = userCons.some(
-          (c) => String(c.lawyer?.id) === String(lawyerId) && c.paid
+          (c) => String(c.lawyer?.id) === String(lawyerId) && c.paid,
         );
       } catch (_) {}
     }
@@ -79,15 +77,15 @@ export async function renderLawyerProfilePage(lawyerId, initialTab) {
             <div class="rating-container">
               ${generateStars(lawyer.averageRating)}
               <span class="rating-text">${lawyer.averageRating.toFixed(1)}/5 (${
-      reviews.length
-    } reviews)</span>
+                reviews.length
+              } reviews)</span>
             </div>
             <p class="practice-areas"><strong>Practice Areas:</strong> ${lawyer.practiceAreas.join(
-              ", "
+              ", ",
             )}</p>
             <p><strong>Location:</strong> ${lawyer.officeAddress.city}, ${
-      lawyer.officeAddress.state
-    }</p>
+              lawyer.officeAddress.state
+            }</p>
             <p><strong>Services:</strong> ${lawyer.serviceTypes.join(", ")}</p>
             <p><strong>Languages:</strong> ${lawyer.languages.join(", ")}</p>
             <p><strong>Consultation Fee:</strong> ₹${lawyer.consultationFee}</p>
@@ -150,7 +148,7 @@ export async function renderLawyerProfilePage(lawyerId, initialTab) {
                 <p>${edu.institution}</p>
                 <p>Graduated: ${edu.graduationYear}</p>
               </div>
-            `
+            `,
               )
               .join("")}
           </div>
@@ -162,8 +160,8 @@ export async function renderLawyerProfilePage(lawyerId, initialTab) {
                 localStorage.getItem("user") && !isProfileOwner
                   ? `<button id="write-review-btn" class="btn btn-outline">Write a Review</button>`
                   : !localStorage.getItem("user")
-                  ? `<p>Please <a href="#" id="login-to-review">login</a> to write a review</p>`
-                  : ""
+                    ? `<p>Please <a href="#" id="login-to-review">login</a> to write a review</p>`
+                    : ""
               }
             </div>
             
@@ -180,12 +178,12 @@ export async function renderLawyerProfilePage(lawyerId, initialTab) {
                           <img src="${
                             review.user.profileImage || "/lawyer.png"
                           }" alt="${
-                          review.user.name
-                        }" onerror="this.src='/lawyer.png'">
+                            review.user.name
+                          }" onerror="this.src='/lawyer.png'">
                         </div>
                         <h4>${review.user.name}</h4>
                         <span class="review-date">${new Date(
-                          review.createdAt
+                          review.createdAt,
                         ).toLocaleDateString()}</span>
                       </div>
                       <div class="review-rating">
@@ -194,7 +192,7 @@ export async function renderLawyerProfilePage(lawyerId, initialTab) {
                     </div>
                     <p class="review-content">${review.comment}</p>
                   </div>
-                `
+                `,
                       )
                       .join("")
                   : `<p class="no-reviews">No reviews yet. Be the first to review this lawyer.</p>`
@@ -286,7 +284,7 @@ export async function renderLawyerProfilePage(lawyerId, initialTab) {
     const editProfileBtn = document.getElementById("edit-profile-btn");
     if (editProfileBtn) {
       editProfileBtn.addEventListener("click", () =>
-        showEditProfileModal(lawyer, lawyerId)
+        showEditProfileModal(lawyer, lawyerId),
       );
     }
 
@@ -294,7 +292,7 @@ export async function renderLawyerProfilePage(lawyerId, initialTab) {
     const changePhotoBtn = document.getElementById("change-photo-btn");
     if (changePhotoBtn) {
       changePhotoBtn.addEventListener("click", () =>
-        showChangePhotoModal(lawyer, lawyerId)
+        showChangePhotoModal(lawyer, lawyerId),
       );
     }
 
@@ -330,7 +328,10 @@ export async function renderLawyerProfilePage(lawyerId, initialTab) {
             renderLawyerProfilePage(lawyerId, "consultations");
           } catch (error) {
             console.error("Error accepting consultation:", error);
-            showToast("Failed to accept consultation. Please try again.", "error");
+            showToast(
+              "Failed to accept consultation. Please try again.",
+              "error",
+            );
           }
         });
       });
@@ -346,7 +347,10 @@ export async function renderLawyerProfilePage(lawyerId, initialTab) {
             renderLawyerProfilePage(lawyerId, "consultations");
           } catch (error) {
             console.error("Error rejecting consultation:", error);
-            showToast("Failed to reject consultation. Please try again.", "error");
+            showToast(
+              "Failed to reject consultation. Please try again.",
+              "error",
+            );
           }
         });
       });
@@ -367,13 +371,20 @@ export async function renderLawyerProfilePage(lawyerId, initialTab) {
               try {
                 await lawyerService.cancelConsultation(consultationId);
                 window.dispatchEvent(new CustomEvent("consultations-updated"));
-                showToast("Consultation cancelled. Fee will be refunded to the user.", "success");
+                showToast(
+                  "Consultation cancelled. Fee will be refunded to the user.",
+                  "success",
+                );
                 renderLawyerProfilePage(lawyerId, "consultations");
               } catch (error) {
                 console.error("Error cancelling consultation:", error);
-                showToast(error.response?.data?.message || "Failed to cancel consultation.", "error");
+                showToast(
+                  error.response?.data?.message ||
+                    "Failed to cancel consultation.",
+                  "error",
+                );
               }
-            }
+            },
           );
         });
       });
@@ -568,8 +579,15 @@ function showReviewModal(lawyerId) {
 // Show lawyer contact details (for clients who have a paid consultation)
 function showContactModal(lawyer) {
   const addr = lawyer.officeAddress || {};
-  const addressParts = [addr.street, addr.city, addr.state, addr.zipCode].filter(Boolean);
-  const addressStr = addressParts.length ? addressParts.join(", ") : "Not provided";
+  const addressParts = [
+    addr.street,
+    addr.city,
+    addr.state,
+    addr.zipCode,
+  ].filter(Boolean);
+  const addressStr = addressParts.length
+    ? addressParts.join(", ")
+    : "Not provided";
   const modal = document.createElement("div");
   modal.classList.add("modal");
   modal.innerHTML = `
@@ -584,7 +602,9 @@ function showContactModal(lawyer) {
     </div>
   `;
   document.body.appendChild(modal);
-  modal.querySelector(".close").addEventListener("click", () => document.body.removeChild(modal));
+  modal
+    .querySelector(".close")
+    .addEventListener("click", () => document.body.removeChild(modal));
   modal.addEventListener("click", (e) => {
     if (e.target === modal) document.body.removeChild(modal);
   });
@@ -598,6 +618,7 @@ function showSchedulingModal(lawyerName, lawyerId) {
     <div class="modal-content">
       <span class="close">&times;</span>
       <h2>Schedule a Consultation with ${lawyerName}</h2>
+      <p class="form-help">All times are in your local timezone (${Intl.DateTimeFormat().resolvedOptions().timeZone})</p>
       <form id="scheduling-form">
         <div class="form-group">
           <label for="consultation-date">Date</label>
@@ -650,40 +671,56 @@ function showSchedulingModal(lawyerName, lawyerId) {
   });
 
   // Handle form submit - create consultation via API
-  document.getElementById("scheduling-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const dateEl = document.getElementById("consultation-date");
-    const timeEl = document.getElementById("consultation-time");
-    const typeEl = document.getElementById("consultation-type");
-    const notesEl = document.getElementById("consultation-notes");
-    const submitBtn = modal.querySelector('button[type="submit"]');
+  document
+    .getElementById("scheduling-form")
+    .addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const dateEl = document.getElementById("consultation-date");
+      const timeEl = document.getElementById("consultation-time");
+      const typeEl = document.getElementById("consultation-type");
+      const notesEl = document.getElementById("consultation-notes");
+      const submitBtn = modal.querySelector('button[type="submit"]');
 
-    const date = dateEl?.value;
-    const time = timeEl?.value;
-    const type = typeEl?.value;
-    const notes = (notesEl?.value || "").trim();
+      const date = dateEl?.value;
+      const time = timeEl?.value;
+      const type = typeEl?.value;
+      const notes = (notesEl?.value || "").trim();
 
-    if (!date || !time || !type) {
-      showToast("Please fill in date, time, and consultation type.", "error");
-      return;
-    }
+      if (!date || !time || !type) {
+        showToast("Please fill in date, time, and consultation type.", "error");
+        return;
+      }
 
-    submitBtn.disabled = true;
-    submitBtn.textContent = "Sending...";
-    try {
-      await lawyerService.scheduleConsultation(lawyerId, { date, time, type, notes: notes || undefined });
-      document.body.removeChild(modal);
-      showToast(`Consultation request sent to ${lawyerName}. They will confirm or respond soon.`, "success");
-    } catch (err) {
-      console.error("Schedule consultation error:", err);
-      submitBtn.disabled = false;
-      submitBtn.textContent = "Request Consultation";
-      const msg = err.response?.status === 401
-        ? "Please log in to request a consultation."
-        : (err.response?.data?.message || "Failed to send request. Please try again.");
-      showToast(msg, "error");
-    }
-  });
+      // Get user's timezone offset in minutes
+      const timezoneOffset = new Date().getTimezoneOffset();
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Sending...";
+      try {
+        await lawyerService.scheduleConsultation(lawyerId, {
+          date,
+          time,
+          type,
+          notes: notes || undefined,
+          timezoneOffset: -timezoneOffset, // Negate because getTimezoneOffset returns opposite sign
+        });
+        document.body.removeChild(modal);
+        showToast(
+          `Consultation request sent to ${lawyerName}. They will confirm or respond soon.`,
+          "success",
+        );
+      } catch (err) {
+        console.error("Schedule consultation error:", err);
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Request Consultation";
+        const msg =
+          err.response?.status === 401
+            ? "Please log in to request a consultation."
+            : err.response?.data?.message ||
+              "Failed to send request. Please try again.";
+        showToast(msg, "error");
+      }
+    });
 }
 
 // Show modal for changing profile photo
@@ -780,7 +817,7 @@ function showChangePhotoModal(lawyer, lawyerId) {
         "Uploading image:",
         profileImageInput.files[0].name,
         profileImageInput.files[0].size,
-        profileImageInput.files[0].type
+        profileImageInput.files[0].type,
       );
 
       // Upload the image using the corrected API service
@@ -1243,15 +1280,15 @@ function showEditProfileModal(lawyer, lawyerId) {
 
         // Collect form data
         const practiceAreas = Array.from(
-          document.querySelectorAll('input[name="practiceAreas"]:checked')
+          document.querySelectorAll('input[name="practiceAreas"]:checked'),
         ).map((el) => el.value);
 
         const serviceTypes = Array.from(
-          document.querySelectorAll('input[name="serviceTypes"]:checked')
+          document.querySelectorAll('input[name="serviceTypes"]:checked'),
         ).map((el) => el.value);
 
         const languages = Array.from(
-          document.querySelectorAll('input[name="languages"]:checked')
+          document.querySelectorAll('input[name="languages"]:checked'),
         ).map((el) => el.value);
 
         // Validate required fields
@@ -1319,7 +1356,7 @@ function showEditProfileModal(lawyer, lawyerId) {
         // Submit data to update the profile
         const response = await lawyerService.updateLawyer(
           lawyerId,
-          updatedData
+          updatedData,
         );
 
         if (response.data.success) {
@@ -1356,19 +1393,28 @@ function renderConsultations(consultations) {
   }
 
   return consultations
-    .map(
-      (consultation) => `
+    .map((consultation) => {
+      // Format date in user's local timezone
+      const consultationDate = new Date(consultation.date);
+      const formattedDate = consultationDate.toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        weekday: "short",
+      });
+
+      return `
     <div class="consultation-item ${consultation.status}" data-status="${
-        consultation.status
-      }">
+      consultation.status
+    }">
       <div class="consultation-header">
         <div class="consultation-client">
           <div class="profile-image-circle">
             <img src="${
               consultation.client.profileImage || "/lawyer.png"
             }" alt="${
-        consultation.client.name
-      }" onerror="this.src='/lawyer.png'">
+              consultation.client.name
+            }" onerror="this.src='/lawyer.png'">
           </div>
           <h4>${consultation.client.name}</h4>
         </div>
@@ -1380,9 +1426,7 @@ function renderConsultations(consultations) {
       </div>
       
       <div class="consultation-details">
-        <p><strong>Date:</strong> ${new Date(
-          consultation.date
-        ).toLocaleDateString()}</p>
+        <p><strong>Date:</strong> ${formattedDate}</p>
         <p><strong>Time:</strong> ${consultation.time}</p>
         <p><strong>Type:</strong> ${consultation.type}</p>
         <p><strong>Issue:</strong> ${consultation.notes}</p>
@@ -1394,7 +1438,7 @@ function renderConsultations(consultations) {
       </div>
       
       ${
-        (consultation.status === "pending" || consultation.status === "accepted")
+        consultation.status === "pending" || consultation.status === "accepted"
           ? `
       <div class="consultation-actions">
         ${
@@ -1407,7 +1451,9 @@ function renderConsultations(consultations) {
             : ""
         }
         ${
-          consultation.status === "accepted" && consultation.paid && (consultation.rescheduleRequests || []).length < 1
+          consultation.status === "accepted" &&
+          consultation.paid &&
+          (consultation.rescheduleRequests || []).length < 1
             ? `<button class="btn btn-sm btn-outline reschedule-btn" data-id="${consultation.id}">Reschedule</button>`
             : ""
         }
@@ -1417,8 +1463,8 @@ function renderConsultations(consultations) {
           : ""
       }
     </div>
-  `
-    )
+  `;
+    })
     .join("");
 }
 
@@ -1448,6 +1494,7 @@ function showRescheduleModal(consultationId, lawyerId) {
     <div class="modal-content">
       <span class="close">&times;</span>
       <h2>Reschedule Consultation</h2>
+      <p class="form-help">All times are in your local timezone (${Intl.DateTimeFormat().resolvedOptions().timeZone})</p>
       <form id="reschedule-form">
         <div class="form-group">
           <label for="reschedule-date">Proposed Date</label>
@@ -1501,20 +1548,30 @@ function showRescheduleModal(consultationId, lawyerId) {
       const time = document.getElementById("reschedule-time").value;
       const message = document.getElementById("reschedule-message").value;
 
+      // Get user's timezone offset in minutes
+      const timezoneOffset = new Date().getTimezoneOffset();
+
       try {
         await lawyerService.rescheduleConsultation(consultationId, {
           date,
           time,
           message,
+          timezoneOffset: -timezoneOffset, // Negate because getTimezoneOffset returns opposite sign
         });
 
-        showToast("Reschedule sent. User will see the new date/time in their consultations.", "success");
+        showToast(
+          "Reschedule sent. User will see the new date/time in their consultations.",
+          "success",
+        );
         document.body.removeChild(modal);
         window.dispatchEvent(new CustomEvent("consultations-updated"));
         renderLawyerProfilePage(lawyerId, "consultations");
       } catch (error) {
         console.error("Error rescheduling consultation:", error);
-        showToast("Failed to reschedule consultation. Please try again.", "error");
+        showToast(
+          "Failed to reschedule consultation. Please try again.",
+          "error",
+        );
       }
     });
 }

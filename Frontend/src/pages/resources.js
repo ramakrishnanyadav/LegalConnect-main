@@ -2,26 +2,24 @@ import { resourceService } from "../services/api.js";
 
 // Map of PDF filenames to their ImageKit URLs
 const pdfUrls = {
-  "Woman_Law.pdf":
-    "https://ik.imagekit.io/waghDev/lawsphere/pdf/Woman_Law.pdf?updatedAt=1742669340490",
+  "DISCRIMATION.pdf":
+    "https://ik.imagekit.io/igaryanthakur/legalconnect/resources/DISCRIMATION.pdf",
   "englishconstitution.pdf":
-    "https://ik.imagekit.io/waghDev/lawsphere/pdf/englishconstitution.pdf?updatedAt=1742669337718",
-  "Model-Tenancy-Act-English.pdf":
-    "https://ik.imagekit.io/waghDev/lawsphere/pdf/Model-Tenancy-Act-English-02_06_2021.pdf?updatedAt=1742669334836",
+    "https://ik.imagekit.io/igaryanthakur/legalconnect/resources/englishconstitution.pdf",
   "Labour_Law.pdf":
-    "https://ik.imagekit.io/waghDev/lawsphere/pdf/Labour_Law.pdf?updatedAt=1742669334242",
-  "RIGHT_EVICTION.pdf":
-    "https://ik.imagekit.io/waghDev/lawsphere/pdf/RIGHT_EVICTION.pdf?updatedAt=1742669333941",
-  "Tenants-Rights-Handbook.pdf":
-    "https://ik.imagekit.io/waghDev/lawsphere/pdf/Tenants-Rights-Handbook.pdf?updatedAt=1742669333336",
-  "PRIVACY_LAW.pdf":
-    "https://ik.imagekit.io/waghDev/lawsphere/pdf/PRIVACY_LAW.pdf?updatedAt=1742669331369",
+    "https://ik.imagekit.io/igaryanthakur/legalconnect/resources/Labour_Law.pdf",
+  "Model-Tenancy-Act-English-02_06_2021.pdf":
+    "https://ik.imagekit.io/igaryanthakur/legalconnect/resources/Model-Tenancy-Act-English-02_06_2021.pdf",
   "Notice-of-Termination.pdf":
-    "https://ik.imagekit.io/waghDev/lawsphere/pdf/Notice-of-Termination.pdf?updatedAt=1742669330931",
-  "DISCRIMINATION.pdf":
-    "https://ik.imagekit.io/waghDev/lawsphere/pdf/DISCRIMATION.pdf?updatedAt=1742669330031",
-  "Tenants-Rights.pdf":
-    "https://ik.imagekit.io/waghDev/lawsphere/pdf/Tenants-Rights-Handbook.pdf?updatedAt=1742669333336",
+    "https://ik.imagekit.io/igaryanthakur/legalconnect/resources/Notice-of-Termination.pdf",
+  "PRIVACY_LAW.pdf":
+    "https://ik.imagekit.io/igaryanthakur/legalconnect/resources/PRIVACY_LAW.pdf",
+  "RIGHT_EVICTION.pdf":
+    "https://ik.imagekit.io/igaryanthakur/legalconnect/resources/RIGHT_EVICTION.pdf",
+  "Tenants-Rights-Handbook.pdf":
+    "https://ik.imagekit.io/igaryanthakur/legalconnect/resources/Tenants-Rights-Handbook.pdf",
+  "Woman_Law.pdf":
+    "https://ik.imagekit.io/igaryanthakur/legalconnect/resources/Woman_Law.pdf",
 };
 
 export function renderResourcesPage() {
@@ -69,7 +67,9 @@ export function renderResourcesPage() {
   // Type filter: when user clicks a type, apply filter and reload
   document.querySelectorAll("#type-filters .filter-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
-      document.querySelectorAll("#type-filters .filter-btn").forEach((b) => b.classList.remove("active"));
+      document
+        .querySelectorAll("#type-filters .filter-btn")
+        .forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
       const type = btn.dataset.filter;
       filterResources(type === "all" ? {} : { type });
@@ -113,62 +113,18 @@ async function loadResources(filters = {}) {
 
     // Add event listeners for action buttons
     document.querySelectorAll(".resource-view-btn").forEach((btn) => {
-      btn.addEventListener("click", async (e) => {
+      btn.addEventListener("click", (e) => {
         e.preventDefault();
-        const resourceId = btn.dataset.id;
         const fileName = btn.dataset.file;
-
-        try {
-          // Increment view count first
-          const response = await resourceService.incrementView(resourceId);
-
-          // Update the view count in the UI if available
-          if (response.data && response.data.views) {
-            const viewCountEl = btn
-              .closest(".resource-card")
-              .querySelector(".resource-meta span:first-child");
-            if (viewCountEl) {
-              viewCountEl.innerHTML = `<i class="fas fa-eye"></i> ${response.data.views}`;
-            }
-          }
-
-          // Then open the resource
-          viewResource(fileName);
-        } catch (error) {
-          console.error("Error incrementing view count:", error);
-          // Still open the resource even if count update fails
-          viewResource(fileName);
-        }
+        viewResource(fileName);
       });
     });
 
     document.querySelectorAll(".resource-download-btn").forEach((btn) => {
-      btn.addEventListener("click", async (e) => {
+      btn.addEventListener("click", (e) => {
         e.preventDefault();
-        const resourceId = btn.dataset.id;
         const fileName = btn.dataset.file;
-
-        try {
-          // Increment download count
-          const response = await resourceService.incrementDownload(resourceId);
-
-          // Update the download count in the UI if available
-          if (response.data && response.data.downloads) {
-            const downloadCountEl = btn
-              .closest(".resource-card")
-              .querySelector(".resource-meta span:nth-child(2)");
-            if (downloadCountEl) {
-              downloadCountEl.innerHTML = `<i class="fas fa-download"></i> ${response.data.downloads}`;
-            }
-          }
-
-          // Then trigger the download
-          downloadResource(fileName);
-        } catch (error) {
-          console.error("Error incrementing download count:", error);
-          // Still download the resource even if count update fails
-          downloadResource(fileName);
-        }
+        downloadResource(fileName);
       });
     });
   } catch (error) {
@@ -210,7 +166,7 @@ async function loadCategories() {
 
     // Add event listener to "All" button
     const allButton = document.querySelector(
-      "#category-filters .filter-btn[data-filter='all']"
+      "#category-filters .filter-btn[data-filter='all']",
     );
     allButton.addEventListener("click", () => {
       // Remove active class from all category buttons
@@ -231,7 +187,9 @@ async function loadCategories() {
 
 function getActiveFilters() {
   const filters = {};
-  const activeCategory = document.querySelector("#category-filters .filter-btn.active");
+  const activeCategory = document.querySelector(
+    "#category-filters .filter-btn.active",
+  );
   const activeType = document.querySelector("#type-filters .filter-btn.active");
   const searchInput = document.getElementById("resource-search");
   if (activeCategory && activeCategory.dataset.filter !== "all") {
@@ -253,22 +211,16 @@ function filterResources(overrides = {}) {
 
 function renderResourceCard(resource) {
   const hasFile = resource.file ? true : false;
-  const views = resource.views ?? 0;
-  const downloads = resource.downloads ?? 0;
 
   return `
     <div class="resource-card">
       <div class="resource-type ${(resource.type || "").toLowerCase()}">${
-    resource.type || "Guide"
-  }</div>
+        resource.type || "Guide"
+      }</div>
       <h3 class="resource-title">${resource.title}</h3>
       <p class="resource-category">${resource.category}</p>
       <p class="resource-description">${resource.description}</p>
-      <div class="resource-meta">
-        <span><i class="fas fa-eye"></i> ${views}</span>
-        <span><i class="fas fa-download"></i> ${downloads}</span>
-        ${resource.duration ? `<span><i class="fas fa-clock"></i> ${resource.duration}</span>` : ""}
-      </div>
+      ${resource.duration ? `<div class="resource-meta"><span><i class="fas fa-clock"></i> ${resource.duration}</span></div>` : ""}
       <div class="resource-actions">
         ${
           hasFile
@@ -290,38 +242,54 @@ function renderResourceCard(resource) {
 }
 
 function viewResource(fileName) {
-  // Open the PDF file in a new tab using the ImageKit URL
+  // Get ImageKit URL with inline display parameter
   const pdfUrl = pdfUrls[fileName] || `/pdfs/${fileName}`;
-  const viewerWindow = window.open(pdfUrl, "_blank");
 
-  // Add a direct download link to the opened window
-  if (viewerWindow) {
-    viewerWindow.addEventListener("load", function () {
-      try {
-        const downloadBar = document.createElement("div");
-        downloadBar.style.cssText =
-          "position:fixed;top:0;left:0;right:0;background-color:#2d5d7b;color:white;padding:10px;text-align:center;z-index:9999;";
-        downloadBar.innerHTML = `Viewing: ${fileName} <a href="${pdfUrl}" download="${fileName}" style="color:white;margin-left:20px;text-decoration:underline;">Click here to download directly</a>`;
-        viewerWindow.document.body.prepend(downloadBar);
-      } catch (e) {
-        // If we can't modify the opened window (due to cross-origin restrictions),
-        // we don't show the download bar but the file still opens
-        console.log("Could not add download bar to viewer window:", e);
-      }
-    });
-  }
+  // For ImageKit URLs, add transformation to ensure inline display
+  // Check if URL already has query parameters and use appropriate connector
+  const viewUrl = pdfUrl.includes("imagekit.io")
+    ? `${pdfUrl}${pdfUrl.includes("?") ? "&" : "?"}tr=f-inline`
+    : pdfUrl;
+
+  // Open in new tab - browser will display PDF with its native viewer
+  window.open(viewUrl, "_blank");
 }
 
-function downloadResource(fileName) {
-  // Get ImageKit URL for the file
-  const pdfUrl = pdfUrls[fileName] || `/pdfs/${fileName}`;
+async function downloadResource(fileName) {
+  try {
+    // Get ImageKit URL for the file
+    const pdfUrl = pdfUrls[fileName] || `/pdfs/${fileName}`;
 
-  // Create an anchor element for downloading
-  const link = document.createElement("a");
-  link.href = pdfUrl;
-  link.download = fileName; // Set the download attribute to force download
-  link.target = "_blank"; // Open in new tab (needed for larger files)
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+    // For ImageKit URLs, use transformation parameter to force download
+    // Check if URL already has query parameters and use appropriate connector
+    const downloadUrl = pdfUrl.includes("imagekit.io")
+      ? `${pdfUrl}${pdfUrl.includes("?") ? "&" : "?"}tr=f-attachment`
+      : pdfUrl;
+
+    // Fetch the file and create a blob for proper download
+    const response = await fetch(downloadUrl);
+
+    if (!response.ok) {
+      throw new Error("Download failed");
+    }
+
+    const blob = await response.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+
+    // Create download link
+    const link = document.createElement("a");
+    link.href = blobUrl;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+
+    // Cleanup
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(blobUrl);
+  } catch (error) {
+    console.error("Download error:", error);
+    // Fallback: open in new tab
+    const pdfUrl = pdfUrls[fileName] || `/pdfs/${fileName}`;
+    window.open(pdfUrl, "_blank");
+  }
 }
