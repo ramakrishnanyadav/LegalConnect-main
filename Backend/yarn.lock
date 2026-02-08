@@ -105,7 +105,7 @@ asynckit@^0.4.0:
   resolved "https://registry.npmjs.org/asynckit/-/asynckit-0.4.0.tgz"
   integrity sha512-Oei9OH4tRh0YqU3GxhX79dM/mwVgvbZJaSNaRk+bshkj0S5cfHcgYakreBjrHwatXKbz+IoIdYLxrKim2MjW0Q==
 
-axios@^1.6.5:
+axios@^1.6.5, axios@^1.6.8:
   version "1.13.4"
   resolved "https://registry.npmjs.org/axios/-/axios-1.13.4.tgz"
   integrity sha512-1wVkUaAO6WyaYtCkcYCOx12ZgpGf9Zif+qXa4n+oYzK558YryKqiL6UWwd5DqiH3VRW0GYhTZQ/vlgJrCoNQlg==
@@ -1147,6 +1147,13 @@ raw-body@~2.5.3:
     http-errors "~2.0.1"
     iconv-lite "~0.4.24"
     unpipe "~1.0.0"
+
+razorpay@^2.9.6:
+  version "2.9.6"
+  resolved "https://registry.npmjs.org/razorpay/-/razorpay-2.9.6.tgz"
+  integrity sha512-zsHAQzd6e1Cc6BNoCNZQaf65ElL6O6yw0wulxmoG5VQDr363fZC90Mp1V5EktVzG45yPyNomNXWlf4cQ3622gQ==
+  dependencies:
+    axios "^1.6.8"
 
 readable-stream@^2.2.2:
   version "2.3.8"

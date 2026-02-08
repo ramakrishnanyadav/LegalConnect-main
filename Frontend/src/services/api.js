@@ -305,4 +305,13 @@ export const aiService = {
   getFAQs: () => api.get("/ai/faq"),
 };
 
+// Payment API services
+export const paymentService = {
+  createOrder: (consultationId) =>
+    api.post("/payments/create-order", { consultationId }),
+  verifyPayment: (paymentData) => api.post("/payments/verify", paymentData),
+  getPaymentDetails: (consultationId) =>
+    api.get(`/payments/consultation/${consultationId}`),
+};
+
 export default api;

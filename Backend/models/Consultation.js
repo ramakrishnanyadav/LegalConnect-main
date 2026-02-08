@@ -41,6 +41,22 @@ const consultationSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  paymentDetails: {
+    razorpayOrderId: String,
+    razorpayPaymentId: String,
+    razorpaySignature: String,
+    amount: Number,
+    currency: {
+      type: String,
+      default: "INR",
+    },
+    status: {
+      type: String,
+      enum: ["pending", "success", "failed"],
+      default: "pending",
+    },
+    paidAt: Date,
+  },
   unreadByClient: {
     type: Boolean,
     default: false,

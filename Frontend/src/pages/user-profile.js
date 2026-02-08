@@ -2,6 +2,7 @@ import {
   userService,
   communityService,
   getProfileImageUrl,
+  paymentService,
 } from "../services/api.js";
 import { showToast, showConfirm } from "../utils/toast.js";
 
@@ -246,15 +247,14 @@ async function loadUserConsultations() {
     // Render consultations
     consultationsContainer.innerHTML = renderConsultations(consultations);
 
-    // Pay button: placeholder until payment gateway is integrated
+    // Pay button: initiate Razorpay payment
     consultationsContainer
       .querySelectorAll(".pay-consultation-btn")
       .forEach((btn) => {
-        btn.addEventListener("click", () => {
-          showToast(
-            "Payment gateway will be integrated soon. You can pay the consultation fee then.",
-            "info",
-          );
+        btn.addEventListener("click", async () => {
+          const consultationId = btn.dataset.id;
+          const fee = parseFloat(btn.dataset.fee);
+          await initiatePayment(consultationId, fee);
         });
       });
 
@@ -482,7 +482,7 @@ function renderConsultations(consultations) {
             ? `
         <div class="consultation-pay-section">
           <p><strong>Consultation fee:</strong> ₹${fee}</p>
-          <button type="button" class="btn btn-primary pay-consultation-btn" data-id="${consultation.id}">Pay now</button>
+          <button type="button" class="btn btn-primary pay-consultation-btn" data-id="${consultation.id}" data-fee="${fee}">Pay now</button>
         </div>
         `
             : ""
@@ -1273,4 +1273,74 @@ function showChangeEmailModal(user) {
       document.body.removeChild(modal);
     }
   });
+}
+
+// Initiate Razorpay payment for consultation
+async function initiatePayment(consultationId, fee) {
+  try {
+    // Create order on backend
+    const orderResponse = await paymentService.createOrder(consultationId);
+    
+    if (!orderResponse.data.success) {
+      showToast(orderResponse.data.message || "Failed to create payment order", "error");
+      return;
+    }
+
+    const { orderId, amount, currency, key } = orderResponse.data.data;
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+
+    // Razorpay checkout options
+    const options = {
+      key: key, // Razorpay key from backend
+      amount: amount * 100, // Amount in paise
+      currency: currency,
+      name: "LegalConnect",
+      description: "Consultation Fee Payment",
+      order_id: orderId,
+      prefill: {
+        name: user.name || "",
+        email: user.email || "",
+      },
+      theme: {
+        color: "#2563eb",
+      },
+      handler: async function (response) {
+        // Payment successful - verify on backend
+        try {
+          const verifyResponse = await paymentService.verifyPayment({
+            razorpayOrderId: response.razorpay_order_id,
+            razorpayPaymentId: response.razorpay_payment_id,
+            razorpaySignature: response.razorpay_signature,
+            consultationId: consultationId,
+          });
+
+          if (verifyResponse.data.success) {
+            showToast("Payment successful! Your consultation is now confirmed.", "success");
+            // Reload consultations to reflect paid status
+            loadUserConsultations();
+          } else {
+            showToast("Payment verification failed. Please contact support.", "error");
+          }
+        } catch (error) {
+          console.error("Payment verification error:", error);
+          showToast("Payment verification failed. Please contact support.", "error");
+        }
+      },
+      modal: {
+        ondismiss: function () {
+          showToast("Payment cancelled", "info");
+        },
+      },
+    };
+
+    // Open Razorpay checkout
+    const razorpay = new window.Razorpay(options);
+    razorpay.open();
+  } catch (error) {
+    console.error("Payment initiation error:", error);
+    showToast(
+      error.response?.data?.message || "Failed to initiate payment. Please try again.",
+      "error"
+    );
+  }
 }
