@@ -415,17 +415,17 @@ export function renderLawyerRegisterPage() {
 
         // Collect practice areas
         const practiceAreas = Array.from(
-          document.querySelectorAll('input[name="practiceAreas"]:checked')
+          document.querySelectorAll('input[name="practiceAreas"]:checked'),
         ).map((el) => el.value);
 
         // Collect service types
         const serviceTypes = Array.from(
-          document.querySelectorAll('input[name="serviceTypes"]:checked')
+          document.querySelectorAll('input[name="serviceTypes"]:checked'),
         ).map((el) => el.value);
 
         // Collect languages
         const languages = Array.from(
-          document.querySelectorAll('input[name="languages"]:checked')
+          document.querySelectorAll('input[name="languages"]:checked'),
         ).map((el) => el.value);
 
         // Validate required fields
@@ -451,11 +451,11 @@ export function renderLawyerRegisterPage() {
         const educationEntries = document.querySelectorAll(".education-entry");
         for (const entry of educationEntries) {
           const institution = entry.querySelector(
-            'input[name$=".institution"]'
+            'input[name$=".institution"]',
           ).value;
           const degree = entry.querySelector('input[name$=".degree"]').value;
           const gradYear = entry.querySelector(
-            'input[name$=".graduationYear"]'
+            'input[name$=".graduationYear"]',
           ).value;
 
           if (!institution || !degree || !gradYear) {
@@ -481,15 +481,15 @@ export function renderLawyerRegisterPage() {
         const education = Array.from(educationEntries).map((entry, index) => {
           return {
             institution: document.querySelector(
-              `input[name="education[${index}].institution"]`
+              `input[name="education[${index}].institution"]`,
             ).value,
             degree: document.querySelector(
-              `input[name="education[${index}].degree"]`
+              `input[name="education[${index}].degree"]`,
             ).value,
             graduationYear: parseInt(
               document.querySelector(
-                `input[name="education[${index}].graduationYear"]`
-              ).value
+                `input[name="education[${index}].graduationYear"]`,
+              ).value,
             ),
           };
         });
@@ -528,9 +528,8 @@ export function renderLawyerRegisterPage() {
         let profileImageUrl = null;
         if (profileImageInput.files.length > 0) {
           try {
-            const uploadResponse = await lawyerService.uploadProfileImage(
-              formData
-            );
+            const uploadResponse =
+              await lawyerService.uploadProfileImage(formData);
             if (uploadResponse.data && uploadResponse.data.success) {
               profileImageUrl =
                 uploadResponse.data.url ||
@@ -538,7 +537,7 @@ export function renderLawyerRegisterPage() {
               console.log("Profile image uploaded:", profileImageUrl);
             } else {
               throw new Error(
-                uploadResponse.data?.message || "Image upload failed"
+                uploadResponse.data?.message || "Image upload failed",
               );
             }
           } catch (error) {
@@ -581,7 +580,10 @@ export function renderLawyerRegisterPage() {
           }
           localStorage.setItem("user", JSON.stringify(userData));
 
-          showToast("Your lawyer profile has been created successfully!", "success");
+          showToast(
+            "Your lawyer profile has been created successfully!",
+            "success",
+          );
 
           // Redirect to lawyers page
           document.querySelector('a[data-page="lawyers"]').click();
